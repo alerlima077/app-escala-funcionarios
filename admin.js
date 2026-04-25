@@ -28,14 +28,8 @@ function carregarDados() {
         funcionarios = parsed.funcionarios || [];
     }
     
-    if (funcionarios.length === 0) {
-        funcionarios = [
-            { id: 1, nome: "João Silva", senha: "1111", status: true, diaria: 80 },
-            { id: 2, nome: "Maria Oliveira", senha: "2222", status: true, diaria: 90 },
-            { id: 3, nome: "Carlos Santos", senha: "3333", status: true, diaria: 85 }
-        ];
-        salvarDados();
-    }
+    // NÃO cria dados automáticos - começa vazio
+    // O administrador cadastra os primeiros funcionários
     
     carregarEscala();
     renderizarLista();
