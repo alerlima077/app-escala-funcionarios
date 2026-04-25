@@ -34,21 +34,71 @@ if ('serviceWorker' in navigator) {
 
 // ========== FUNÇÕES PRINCIPAIS ==========
 
-function carregarDados() {
-    const dados = localStorage.getItem("escala_funcionarios");
-    if (dados) {
-        const parsed = JSON.parse(dados);
-        funcionarios = parsed.funcionarios || [];
+// ========== FUNÇÕES DO FIREBASE ==========
+
+async function carregarDados() {
+    try {
+        console.log("🔄 Carregando dados do Firebase...");
+        const snapshot = await db.collection('funcionarios').orderBy('id').get();
+        funcionarios = [];
+        snapshot.forEach(doc => {
+            funcionarios.push({ id: parseInt(doc.id), ...doc.data() });
+        });
+        console.log(`✅ ${funcionarios.length} funcionários carregados`);
+        carregarEscala();
+        renderizarLista();
+    } catch (error) {
+        console.error("❌ Erro ao carregar funcionários:", error);
+        // Fallback para localStorage se Firebase falhar
+        const dados = localStorage.getItem("escala_funcionarios");
+        if (dados) {
+            const parsed = JSON.parse(dados);
+            funcionarios = parsed.funcionarios || [];
+        }
+        carregarEscala();
+        renderizarLista();
     }
-    
-    // NÃO cria dados automáticos - começa vazio
-    // O administrador cadastra os primeiros funcionários
-    
-    carregarEscala();
-    renderizarLista();
 }
 
-function salvarDados() {
+async function salvarFuncionario(funcionario) {
+    try {
+        if (funcionario.id) {
+            // Atualizar funcionário existente
+            await db.collection('funcionarios').doc(funcionario.id.toString()).update(funcionario);
+            console.log("✏️ Funcionário atualizado:", funcionario.nome);
+        } else {
+            // Criar novo funcionário
+            const novoId = Date.now();
+            funcionario.id = novoId;
+            await db.collection('funcionarios').doc(novoId.toString()).set(funcionario);
+            console.log("➕ Novo funcionário criado:", funcionario.nome);
+        }
+        await carregarDados(); // Recarregar a lista
+        return true;
+    } catch (error) {
+        console.error("❌ Erro ao salvar funcionário:", error);
+        alert("Erro ao salvar no banco de dados. Verifique sua conexão.");
+        return false;
+    }
+}
+
+async function excluirFuncionarioFirebase(id) {
+    if (confirm("Tem certeza que deseja excluir este funcionário?")) {
+        try {
+            await db.collection('funcionarios').doc(id.toString()).delete();
+            console.log("🗑️ Funcionário excluído:", id);
+            await carregarDados(); // Recarregar a lista
+            return true;
+        } catch (error) {
+            console.error("❌ Erro ao excluir funcionário:", error);
+            alert("Erro ao excluir do banco de dados.");
+            return false;
+        }
+    }
+}
+
+// Função de fallback (caso Firebase falhe)
+function salvarDadosLocal() {
     localStorage.setItem("escala_funcionarios", JSON.stringify({ funcionarios, pagamentos: {} }));
 }
 
@@ -714,11 +764,38 @@ document.getElementById("formFuncionario").onsubmit = function(e) {
     }
 };
 
-// Inicializar
-carregarDados();
-carregarPagamentosStorage();  // Carregar dados de pagamento salvos
+// ========== INICIALIZAÇÃO ==========
 
-// Se a aba de pagamentos estiver ativa ao carregar, mostrar os dados
-if (document.getElementById("tab-pagamentos").style.display !== "none") {
-    carregarPagamentos();
+// Função de inicialização principal
+async function inicializarSistema() {
+    console.log("🚀 Inicializando sistema...");
+    
+    // Verificar se Firebase está disponível
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        console.log("🔥 Firebase conectado, carregando dados do banco...");
+        await carregarDados(); // Versão Firebase
+    } else {
+        console.log("⚠️ Firebase não disponível, usando localStorage...");
+        // Versão fallback para localStorage
+        const dados = localStorage.getItem("escala_funcionarios");
+        if (dados) {
+            const parsed = JSON.parse(dados);
+            funcionarios = parsed.funcionarios || [];
+        }
+        renderizarLista();
+    }
+    
+    // Carregar dados de pagamento
+    carregarPagamentosStorage();
+    
+    // Se a aba de pagamentos estiver ativa ao carregar, mostrar os dados
+    const abaPagamentos = document.getElementById("tab-pagamentos");
+    if (abaPagamentos && abaPagamentos.style.display !== "none") {
+        carregarPagamentos();
+    }
+    
+    console.log("✅ Sistema inicializado com sucesso!");
 }
+
+// Inicializar o sistema
+inicializarSistema();
