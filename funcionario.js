@@ -21,41 +21,52 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-function carregarDados() {
+async function carregarDados() {
     const funcionarioStr = localStorage.getItem("funcionarioLogado");
     
     if (!funcionarioStr) {
-        // Redirecionar para login se não estiver logado
         window.location.href = "index.html";
         return;
     }
     
     const funcionarioCache = JSON.parse(funcionarioStr);
     
-    // Recarregar dados atualizados do localStorage
-    const dadosEmpresa = localStorage.getItem("escala_funcionarios");
-    if (dadosEmpresa) {
-        const empresa = JSON.parse(dadosEmpresa);
-        const funcAtualizado = empresa.funcionarios.find(f => f.id === funcionarioCache.id);
-        
-        if (!funcAtualizado || !funcAtualizado.status) {
-            alert("⚠️ Seu acesso foi desativado. Entre em contato com o administrador.");
-            localStorage.removeItem("funcionarioLogado");
-            window.location.href = "index.html";
-            return;
+    // Tentar carregar do Firebase primeiro
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        try {
+            const doc = await db.collection('funcionarios').doc(funcionarioCache.id.toString()).get();
+            if (doc.exists) {
+                const funcAtualizado = doc.data();
+                if (!funcAtualizado.status) {
+                    alert("⚠️ Seu acesso foi desativado. Entre em contato com o administrador.");
+                    localStorage.removeItem("funcionarioLogado");
+                    window.location.href = "index.html";
+                    return;
+                }
+                funcionarioAtual = { id: parseInt(doc.id), ...funcAtualizado };
+                localStorage.setItem("funcionarioLogado", JSON.stringify(funcionarioAtual));
+            } else {
+                funcionarioAtual = funcionarioCache;
+            }
+        } catch (error) {
+            console.error("Erro ao carregar do Firebase:", error);
+            funcionarioAtual = funcionarioCache;
         }
-        
-        funcionarioAtual = funcAtualizado;
-        
-        // Atualizar o localStorage com os dados mais recentes do funcionário
-        localStorage.setItem("funcionarioLogado", JSON.stringify(funcionarioAtual));
     } else {
-        funcionarioAtual = funcionarioCache;
+        // Fallback para localStorage
+        const dadosEmpresa = localStorage.getItem("escala_funcionarios");
+        if (dadosEmpresa) {
+            const empresa = JSON.parse(dadosEmpresa);
+            const funcAtualizado = empresa.funcionarios.find(f => f.id === funcionarioCache.id);
+            funcionarioAtual = funcAtualizado || funcionarioCache;
+        } else {
+            funcionarioAtual = funcionarioCache;
+        }
     }
     
     console.log("👤 Funcionário logado:", funcionarioAtual);
     
-    // Carregar escala
+    // Carregar escala (também do Firebase depois)
     const escalaSalva = localStorage.getItem("escala_funcionarios_escala");
     if (escalaSalva) {
         escalaData = JSON.parse(escalaSalva);
