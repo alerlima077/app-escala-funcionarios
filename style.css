@@ -1,0 +1,642 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  background: #e2e8f0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.card {
+  background: white;
+  border-radius: 32px;
+  padding: 2rem 1.5rem;
+  box-shadow: 0 20px 35px -10px rgba(0,0,0,0.1);
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+h1 {
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+
+p {
+  color: #334155;
+  margin-bottom: 1.5rem;
+}
+
+input {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.2rem;
+  text-align: center;
+  letter-spacing: 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 60px;
+  margin-bottom: 1rem;
+  outline: none;
+}
+
+button {
+  background: #0f172a;
+  color: white;
+  border: none;
+  padding: 0.9rem;
+  width: 100%;
+  border-radius: 60px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.erro {
+  color: #dc2626;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+/* Layout principal */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Cabeçalho do admin */
+.admin-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: white;
+  padding: 20px 30px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.logo-area {
+  flex-shrink: 0;
+}
+
+.logo {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  background: white;
+  border-radius: 12px;
+  padding: 5px;
+}
+
+.header-info h2 {
+  font-size: 1.5rem;
+  margin-bottom: 5px;
+}
+
+.header-info p {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.btn-logout {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-logout:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 10px;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 10px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #64748b;
+  border-radius: 10px;
+  transition: all 0.3s;
+}
+
+.tab-btn.active {
+  background: #0f172a;
+  color: white;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Card */
+.card {
+  background: white;
+  border-radius: 20px;
+  padding: 25px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+/* Tabela */
+.table-responsive {
+  overflow-x: auto;
+}
+
+.funcionarios-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.funcionarios-table th,
+.funcionarios-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.funcionarios-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn-edit, .btn-delete {
+  padding: 5px 10px;
+  margin: 0 3px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-edit {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-delete {
+  background: #ef4444;
+  color: white;
+}
+
+/* Modal */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 30px;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 500px;
+  position: relative;
+}
+
+.close {
+  position: absolute;
+  right: 20px;
+  top: 15px;
+  font-size: 28px;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 1rem;
+}
+
+.btn-primary {
+  background: #0f172a;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  width: 100%;
+}
+
+/* Responsivo celular */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+  
+  .admin-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .funcionarios-table th,
+  .funcionarios-table td {
+    font-size: 0.85rem;
+    padding: 8px;
+  }
+  
+  .btn-edit, .btn-delete {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
+}
+
+/* Estilos da Escala */
+.escala-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.mes-select, .ano-select {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: white;
+  font-size: 0.9rem;
+}
+
+.btn-secondary {
+  background: #64748b;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.escala-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  margin-top: 20px;
+  min-height: 500px;
+}
+
+.funcionarios-sidebar {
+  background: #f8fafc;
+  border-radius: 15px;
+  padding: 15px;
+  border: 1px solid #e2e8f0;
+}
+
+.funcionarios-sidebar h4 {
+  margin-bottom: 15px;
+  color: #0f172a;
+}
+
+.lista-funcionarios-escala {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.funcionario-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: white;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.funcionario-item:hover {
+  background: #f1f5f9;
+}
+
+.funcionario-item.selecionado {
+  background: #e0e7ff;
+  border-color: #3b82f6;
+}
+
+.func-status {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.func-nome {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.func-diaria {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* Calendário */
+.calendario-container {
+  background: white;
+  border-radius: 15px;
+  border: 1px solid #e2e8f0;
+  padding: 15px;
+}
+
+.calendario-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.nav-calendario {
+  background: none;
+  border: 1px solid #cbd5e1;
+  padding: 8px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.mes-ano-titulo {
+  font-size: 1.3rem;
+  color: #0f172a;
+}
+
+.calendario-dias-semana {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.calendario-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.dia-calendario {
+  aspect-ratio: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+  position: relative;
+}
+
+.dia-calendario:hover {
+  background: #f1f5f9;
+  transform: scale(1.02);
+}
+
+.dia-calendario.selecionado {
+  background: #e0e7ff;
+  border-color: #3b82f6;
+}
+
+.dia-numero {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.dia-resumo {
+  font-size: 0.7rem;
+  margin-top: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dia-resumo span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dia-outro-mes {
+  opacity: 0.4;
+}
+
+/* Modal de edição de escala */
+.modal-escala {
+  max-width: 400px;
+}
+
+.status-options {
+  display: flex;
+  gap: 15px;
+  margin: 20px 0;
+}
+
+.status-option {
+  flex: 1;
+}
+
+.status-option input {
+  display: none;
+}
+
+.status-option label {
+  display: block;
+  padding: 12px;
+  text-align: center;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.status-option input:checked + label {
+  background: #0f172a;
+  color: white;
+  border-color: #0f172a;
+}
+
+.status-trabalha label {
+  background: #dcfce7;
+}
+
+.status-folga label {
+  background: #fee2e2;
+}
+
+.funcionarios-multiselect {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 20px;
+}
+
+.func-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  margin-bottom: 5px;
+  cursor: pointer;
+}
+
+.func-checkbox:hover {
+  background: #f8fafc;
+}
+
+.info-acoes {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .escala-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .funcionarios-sidebar {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  .dia-calendario {
+    font-size: 0.7rem;
+  }
+  
+  .dia-resumo {
+    display: none;
+  }
+}
+
+/* Estilos para horários */
+.horario-options {
+    margin: 15px 0;
+    padding: 10px;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+
+.horario-options label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.horario-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: white;
+}
+
+.horario-personalizado {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.horario-personalizado input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.horario-info {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 5px;
+}
+
+.dia-resumo-horario {
+    font-size: 0.65rem;
+    margin-top: 2px;
+    color: #3b82f6;
+    font-weight: 500;
+}
