@@ -44,17 +44,16 @@ async function carregarDados() {
         snapshot.forEach(doc => {
             funcionarios.push({ id: parseInt(doc.id), ...doc.data() });
         });
-        console.log(`✅ ${funcionarios.length} funcionários carregados`);
+        console.log(`✅ ${funcionarios.length} funcionários carregados do Firebase`);
+        
+        // NÃO cria dados automáticos! Mantém vazio.
+        
         carregarEscala();
         renderizarLista();
     } catch (error) {
-        console.error("❌ Erro ao carregar funcionários:", error);
-        // Fallback para localStorage se Firebase falhar
-        const dados = localStorage.getItem("escala_funcionarios");
-        if (dados) {
-            const parsed = JSON.parse(dados);
-            funcionarios = parsed.funcionarios || [];
-        }
+        console.error("❌ Erro ao carregar do Firebase:", error);
+        // Não criar dados automáticos no fallback também
+        funcionarios = [];
         carregarEscala();
         renderizarLista();
     }
