@@ -6,6 +6,19 @@ let funcionarios = [];
 let escalaData = {};
 let semanaAtual = [];
 
+const firebaseConfig = {
+  apiKey: "AIzaSyApDJcJ-bsiPJJLITXdlRtf82gzlSYtZRY",
+  authDomain: "app-escala-funcionarios.firebaseapp.com",
+  projectId: "app-escala-funcionarios",
+  storageBucket: "app-escala-funcionarios.firebasestorage.app",
+  messagingSenderId: "1066676645204",
+  appId: "1:1066676645204:web:3ce459ed8b8b76a7f92cc1"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
 // Registrar Service Worker para PWA
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
