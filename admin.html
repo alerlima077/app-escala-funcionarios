@@ -734,7 +734,13 @@
         <!-- Aba Escala (estilo tabela) -->
         <div id="tab-escala" class="tab-content" style="display: none;">
             <div class="card">
+                <div class="card-header">
                 <h3>📅 Escala Semanal</h3>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-primary" onclick="exportarEscalaPDF()" style="background: #dc2626;">📄 Exportar PDF</button>
+                    <button class="btn-primary" onclick="salvarEscalaSemana()">💾 Salvar Escala</button>
+                </div>
+            </div>
                 <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">
                     👆 Selecione a semana e defina o status e horário para cada funcionário
                 </p>
