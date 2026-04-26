@@ -1,55 +1,65 @@
-// script.js - Sistema de login (VERSÃO FINAL CORRIGIDA)
-
+// script.js - Sistema de login com Firebase
 console.log("🚀 Script de login carregado");
 
-// Senha do admin fixa
-const ADMIN_SENHA = "864175";
+// ========== CONFIGURAÇÃO DO FIREBASE ==========
+const firebaseConfig = {
+    apiKey: "AIzaSyApDJcJ-bsiPJJLITXdlRtf82gzlSYtZRY",
+    authDomain: "app-escala-funcionarios.firebaseapp.com",
+    projectId: "app-escala-funcionarios",
+    storageBucket: "app-escala-funcionarios.firebasestorage.app",
+    messagingSenderId: "1066676645204",
+    appId: "1:1066676645204:web:3ce459ed8b8b76a7f92cc1"
+};
 
-// Registrar Service Worker para PWA
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-                console.log('Service Worker registrado com sucesso:', registration);
-            })
-            .catch(error => {
-                console.log('Falha ao registrar Service Worker:', error);
-            });
-    });
+// Inicializar Firebase (se disponível)
+let db = null;
+if (typeof firebase !== 'undefined') {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.firestore();
+    console.log("✅ Firebase conectado!");
+} else {
+    console.log("⚠️ Firebase SDK não carregado");
 }
 
-// Função de login
-function fazerLogin() {
+// ========== FUNÇÃO DE LOGIN ==========
+async function fazerLogin() {
     const senha = document.getElementById("senha").value;
     const erroDiv = document.getElementById("erro");
     
     console.log("🔑 Tentando login com senha:", senha);
     
     // Verificar se é admin
-    if (senha === ADMIN_SENHA) {
+    if (senha === "123456") {
         console.log("✅ Login ADMIN bem sucedido");
         localStorage.setItem("tipoUsuario", "admin");
         window.location.href = "admin.html";
         return;
     }
     
-    // Carregar funcionários diretamente do localStorage
+    // Buscar funcionários do Firebase
     let funcionarios = [];
-    const dados = localStorage.getItem("escala_funcionarios");
     
-    if (dados) {
+    if (db) {
         try {
-            const parsed = JSON.parse(dados);
-            funcionarios = parsed.funcionarios || [];
-            console.log("👥 Funcionários carregados:", funcionarios.map(f => ({ nome: f.nome, senha: f.senha, status: f.status })));
+            const snapshot = await db.collection('funcionarios').get();
+            snapshot.forEach(doc => {
+                funcionarios.push({ id: parseInt(doc.id), ...doc.data() });
+            });
+            console.log("👥 Funcionários carregados do Firebase:", funcionarios.map(f => ({ nome: f.nome, senha: f.senha })));
         } catch(e) {
-            console.error("Erro ao ler dados:", e);
+            console.error("Erro ao buscar funcionários:", e);
         }
     } else {
-        console.log("⚠️ Nenhum dado encontrado no localStorage");
+        // Fallback para localStorage
+        const dados = localStorage.getItem("escala_funcionarios");
+        if (dados) {
+            const parsed = JSON.parse(dados);
+            funcionarios = parsed.funcionarios || [];
+        }
     }
     
-    // Verificar se é funcionário
     const funcionario = funcionarios.find(f => f.senha === senha && f.status === true);
     
     if (funcionario) {
@@ -64,7 +74,7 @@ function fazerLogin() {
     }
 }
 
-// Aguardar o DOM carregar
+// ========== INICIALIZAÇÃO ==========
 document.addEventListener('DOMContentLoaded', function() {
     console.log("📄 Página de login carregada");
     
@@ -74,8 +84,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnLogin) {
         btnLogin.addEventListener("click", fazerLogin);
         console.log("✅ Botão de login configurado");
-    } else {
-        console.error("❌ Botão de login não encontrado");
     }
     
     if (senhaInput) {
@@ -85,15 +93,5 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         console.log("✅ Evento de tecla configurado");
-    }
-    
-    // Debug: Mostrar funcionários disponíveis no console
-    const dados = localStorage.getItem("escala_funcionarios");
-    if (dados) {
-        const parsed = JSON.parse(dados);
-        console.log("📋 Funcionários disponíveis para login:");
-        parsed.funcionarios.forEach(f => {
-            console.log(`   - ${f.nome}: senha "${f.senha}" (${f.status ? 'Ativo' : 'Inativo'})`);
-        });
     }
 });

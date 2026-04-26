@@ -61,13 +61,14 @@ async function carregarDados() {
         // Se não tem funcionários, NÃO CRIA AUTOMATICAMENTE
         // Mantém vazio para o admin cadastrar manualmente
         
-        carregarEscala();
+        await carregarEscalaFirebase();
         renderizarLista();
     } catch (error) {
         console.error("❌ Erro ao carregar:", error);
         funcionarios = [];
         carregarEscala();
         renderizarLista();
+        
     }
 }
 
@@ -422,7 +423,7 @@ function atualizarStatus(select) {
     }
     
     // Salvar automaticamente
-    salvarEscalaGeral();
+    salvarEscalaFirebase();
 }
 
 function limparTodosDados() {
@@ -440,12 +441,12 @@ function atualizarHorario(input) {
     
     if (escalaData[data] && escalaData[data][funcId] && escalaData[data][funcId].status === 'trabalha') {
         escalaData[data][funcId].horario = horario;
-        salvarEscalaGeral();
+        salvarEscalaFirebase();
     }
 }
 
 function salvarEscalaSemana() {
-    salvarEscalaGeral();
+    salvarEscalaFirebase();
     carregarSemana();
 }
 

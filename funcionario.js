@@ -8,6 +8,30 @@ let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth();
 let diasDoMes = [];
 
+async function carregarEscalaFirebase() {
+    try {
+        if (typeof db !== 'undefined' && db) {
+            const snapshot = await db.collection('escala').get();
+            escalaData = {};
+            
+            snapshot.forEach(doc => {
+                const item = doc.data();
+                const data = item.data;
+                const funcId = item.funcionario_id;
+                
+                if (!escalaData[data]) escalaData[data] = {};
+                escalaData[data][funcId] = {
+                    status: item.status,
+                    horario: item.horario || ''
+                };
+            });
+            console.log(`✅ ${snapshot.docs.length} registros de escala carregados`);
+        }
+    } catch (error) {
+        console.error("Erro ao carregar escala:", error);
+    }
+}
+
 // Registrar Service Worker para PWA
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
