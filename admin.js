@@ -633,11 +633,22 @@ async function carregarPagamentos() {
     const funcionariosAtivos = funcionarios.filter(f => f.status === true);
     const container = document.getElementById("pagamentosContainer");
     
+    // Se não houver funcionários
+    if (funcionariosAtivos.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="text-align: center; padding: 40px;">
+                <p>📋 Nenhum funcionário cadastrado</p>
+                <small>Cadastre funcionários na aba "Funcionários"</small>
+            </div>
+        `;
+        return;
+    }
+    
     // Gerar cabeçalho dos dias
     let diasHTML = '';
     for (let dia = 1; dia <= diasNoMes; dia++) {
         const diaSemana = new Date(parseInt(ano), parseInt(mes)-1, dia).toLocaleDateString('pt-BR', { weekday: 'short' });
-        diasHTML += `<th>${diaSemana}<br>${dia}</th>`;
+        diasHTML += `<th style="min-width: 70px; padding: 10px 4px; text-align: center; background: #0f172a; color: white; font-size: 12px;">${diaSemana}<br>${dia}</th>`;
     }
     
     // Gerar linhas dos funcionários
@@ -660,28 +671,41 @@ async function carregarPagamentos() {
                 diasTrabalhados++;
             }
             
-            // Verificar se o dia foi pago (usando pagamentosData atualizado)
+            // Verificar se o dia foi pago
             const pago = pagamentosData[dataStr] && pagamentosData[dataStr][func.id] === true;
             if (pago) diasPagos++;
             
-            funcionarioDiasHTML += `
-                <td class="${pago ? 'dia-pago' : 'dia-nao-pago'}">
-                    ${trabalhou ? (pago ? 
-                        `<div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
-                            <span style="background: #16a34a; color: white; padding: 4px 8px; border-radius: 20px; font-size: 11px; font-weight: bold;">
+            // Botão ou badge
+            let botoesHTML = '';
+            if (trabalhou) {
+                if (pago) {
+                    botoesHTML = `
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                            <span style="background: #16a34a; color: white; padding: 4px 8px; border-radius: 20px; font-size: 10px; font-weight: bold; white-space: nowrap;">
                                 ✅ PAGO
                             </span>
                             <button onclick="desfazerPagamento('${dataStr}', ${func.id})" 
-                                style="background: #dc2626; color: white; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                                style="background: #dc2626; color: white; border: none; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; white-space: nowrap;">
                                 ↺ DESFAZER
                             </button>
-                        </div>` : 
-                        `<button onclick="marcarDiaPago('${dataStr}', ${func.id})" 
-                            style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold; width: 100%;">
+                        </div>
+                    `;
+                } else {
+                    botoesHTML = `
+                        <button onclick="marcarDiaPago('${dataStr}', ${func.id})" 
+                            style="background: #f59e0b; color: white; border: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; white-space: nowrap;">
                             💰 PAGAR
-                        </button>`
-                    ) : '-'}
-                </table>
+                        </button>
+                    `;
+                }
+            } else {
+                botoesHTML = `<span style="color: #cbd5e1;">—</span>`;
+            }
+            
+            funcionarioDiasHTML += `
+                <td style="padding: 8px 4px; text-align: center; border-bottom: 1px solid #e2e8f0; background: ${pago ? '#dcfce7' : 'white'};">
+                    ${botoesHTML}
+                </td>
             `;
         }
         
@@ -701,9 +725,9 @@ async function carregarPagamentos() {
         
         funcionariosHTML += `
             <tr>
-                <td class="funcionario-col">
-                    <strong>${func.nome}</strong><br>
-                    <small style="font-size: 11px;">R$ ${func.diaria.toFixed(2)}/dia</small>
+                <td style="position: sticky; left: 0; background: #f8fafc; min-width: 130px; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">
+                    <div>${func.nome}</div>
+                    <small style="font-size: 10px; color: #64748b;">R$ ${func.diaria.toFixed(2)}/dia</small>
                 </td>
                 ${funcionarioDiasHTML}
             </tr>
@@ -717,29 +741,37 @@ async function carregarPagamentos() {
     
     // Montar HTML completo
     container.innerHTML = `
-        <div class="resumo-pagamento">
-            <h4>📊 Resumo do Mês ${mes}/${ano}</h4>
+        <div class="resumo-pagamento" style="background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px;">📊 Resumo do Mês ${mes}/${ano}</h4>
             ${totaisPorFuncionario.map(f => `
-                <div class="resumo-item">
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
                     <span><strong>${f.nome}</strong> (${f.diasPagos}/${f.diasTrabalhados} dias)</span>
                     <span>R$ ${f.totalPago.toFixed(2)} de R$ ${f.totalReceber.toFixed(2)}</span>
                 </div>
             `).join('')}
-            <div class="resumo-total">
-                <span>💰 TOTAL GERAL:</span>
-                <span>R$ ${totalGeralPago.toFixed(2)} de R$ ${totalGeralReceber.toFixed(2)}</span>
-            </div>
-            <div class="resumo-total" style="color: ${totalGeralPendente > 0 ? '#dc2626' : '#16a34a'}">
-                <span>📌 PENDENTE:</span>
-                <span>R$ ${totalGeralPendente.toFixed(2)}</span>
+            <div style="font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 2px solid #cbd5e1;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>💰 TOTAL GERAL:</span>
+                    <span>R$ ${totalGeralPago.toFixed(2)} de R$ ${totalGeralReceber.toFixed(2)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; color: ${totalGeralPendente > 0 ? '#dc2626' : '#16a34a'}; margin-top: 5px;">
+                    <span>📌 PENDENTE:</span>
+                    <span>R$ ${totalGeralPendente.toFixed(2)}</span>
+                </div>
             </div>
         </div>
         
-        <div style="overflow-x: auto;">
-            <table class="pagamentos-table">
+        <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid #e2e8f0; background: white;">
+            <table style="min-width: 700px; width: 100%; border-collapse: collapse; font-size: 12px;">
                 <thead>
-                    <tr><th style="min-width: 120px;">Funcionário</th>${diasHTML}</thead>
-                <tbody>${funcionariosHTML}</tbody>
+                    <tr>
+                        <th style="position: sticky; left: 0; background: #0f172a; color: white; min-width: 130px; padding: 12px; text-align: left;">Funcionário</th>
+                        ${diasHTML}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${funcionariosHTML}
+                </tbody>
             </table>
         </div>
     `;
