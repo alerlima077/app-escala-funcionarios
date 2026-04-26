@@ -123,9 +123,73 @@ function carregarEscala() {
     }
 }
 
-async function salvarEscalaGeral() {
-    await salvarEscalaFirebase();
+function salvarEscalaGeral() {
+    console.log("💾 Salvando escala com horários:", escalaData);
+    
+    // Salvar no localStorage
+    localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
+    
+    // Salvar no Firebase se disponível
+    if (typeof db !== 'undefined' && db) {
+        salvarEscalaFirebase();
+    }
+    
     alert("✅ Escala salva com sucesso!");
+}
+
+// ========== CALCULAR VALOR POR DIA (MÚLTIPLOS HORÁRIOS) ==========
+function calcularValorDia(funcionario, dataStr) {
+    const escala = escalaData[dataStr] && escalaData[dataStr][funcionario.id];
+    
+    if (!escala || escala.status !== 'trabalha') return 0;
+    
+    const horarios = escala.horarios || [];
+    let valorTotal = 0;
+
+    if (horarios.length > 0) {
+        horarios.forEach(horario => {
+            if (horario === '07:00 às 15:20' || horario === '15:00 às 23:30') {
+                valorTotal += funcionario.diaria;
+            } else if (horario === '07:00 às 23:30') {
+                valorTotal += funcionario.diaria * 2;
+            } else if (horario && horario !== '') {
+                valorTotal += funcionario.diaria;
+            }
+        });
+    } else {
+        valorTotal += funcionario.diaria;
+    }
+
+    // ✅ SOMA O ADICIONAL
+    const adicional = escala.adicional || 0;
+    valorTotal += adicional;
+
+    return valorTotal;
+}
+
+// ========== FUNÇÃO PARA SALVAR ESCALA DA SEMANA ==========
+async function salvarEscalaSemana() {
+    console.log("💾 Salvando escala da semana...");
+    
+    try {
+        // Salvar no Firebase se disponível
+        if (typeof db !== 'undefined' && db) {
+            await salvarEscalaFirebase();
+            console.log("✅ Salvo no Firebase");
+        }
+        
+        // Salvar no localStorage como backup
+        localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
+        
+        alert("✅ Escala da semana salva com sucesso!");
+        
+        // Recarregar a tabela para mostrar os dados salvos
+        carregarSemana();
+        
+    } catch (error) {
+        console.error("Erro ao salvar escala:", error);
+        alert("❌ Erro ao salvar escala. Tente novamente.");
+    }
 }
 
 // ========== FUNÇÃO PARA SALVAR ESCALA DA SEMANA ==========
@@ -167,10 +231,16 @@ async function carregarEscalaFirebase() {
             const data = item.data;
             const funcId = item.funcionario_id;
             
+            // Converter estrutura antiga (horario) para nova (horarios)
+            let horarios = item.horarios || [];
+            if (horarios.length === 0 && item.horario) {
+                horarios = [item.horario];
+            }
+            
             if (!escalaData[data]) escalaData[data] = {};
             escalaData[data][funcId] = {
                 status: item.status,
-                horario: item.horario || ''
+                horarios: horarios
             };
         });
         
@@ -198,7 +268,7 @@ async function salvarEscalaFirebase() {
                     data: data,
                     funcionario_id: parseInt(funcId),
                     status: dados.status,
-                    horario: dados.horario || ''
+                    horarios: dados.horarios || []
                 });
             }
         }
@@ -331,8 +401,8 @@ function renderizarTabelaEscala() {
     // Cabeçalho
     thead.innerHTML = `
         <tr>
-            <th style="min-width: 130px; position: sticky; left: 0; background: #0f172a; z-index: 1;">Funcionário</th>
-            ${semanaAtual.map(dia => `<th style="min-width: 140px; text-align: center;">${dia.nome}<br>${dia.diaNum}/${String(dia.mesNum).padStart(2,'0')}</th>`).join('')}
+            <th style="min-width: 150px; position: sticky; left: 0; background: #0f172a; z-index: 1;">Funcionário</th>
+            ${semanaAtual.map(dia => `<th style="min-width: 160px; text-align: center;">${dia.nome}<br>${dia.diaNum}/${String(dia.mesNum).padStart(2,'0')}</th>`).join('')}
         </tr>
     `;
     
@@ -340,44 +410,47 @@ function renderizarTabelaEscala() {
     tbody.innerHTML = funcionariosAtivos.map(func => {
         return `
             <tr>
-                <td class="funcionario-nome" style="min-width: 130px; position: sticky; left: 0; background: white; z-index: 1; font-weight: 600;">
+                <td class="funcionario-nome" style="min-width: 150px; position: sticky; left: 0; background: white; z-index: 1; font-weight: 600;">
                     ${func.nome}<br>
                     <span style="font-size: 11px; color: #64748b;">R$ ${func.diaria.toFixed(2)}/dia</span>
-                </td>
+                 </td>
                 ${semanaAtual.map(dia => {
                     const escala = escalaData[dia.data] && escalaData[dia.data][func.id];
                     const status = escala ? escala.status : '';
-                    const horario = escala && escala.horario ? escala.horario : '';
-                    
-                    // Determinar se o select de horário deve estar habilitado
-                    const horarioDisabled = status !== 'trabalha';
+                    const horarios = escala && escala.horarios ? escala.horarios : [];
                     
                     return `
-                        <td style="min-width: 140px; padding: 8px; vertical-align: top;">
+                        <td style="min-width: 160px; padding: 8px; vertical-align: top;">
                             <select class="status-select" data-data="${dia.data}" data-func="${func.id}" onchange="atualizarStatus(this)" 
-                                    style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13px;">
+                                    style="width: 100%; padding: 6px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 12px;">
                                 <option value="">-- Selecionar --</option>
                                 <option value="trabalha" ${status === 'trabalha' ? 'selected' : ''}>✅ Trabalha</option>
                                 <option value="folga" ${status === 'folga' ? 'selected' : ''}>❌ Folga</option>
                                 <option value="excluir">🗑️ Excluir</option>
                             </select>
                             
-                            <select class="horario-select" data-data="${dia.data}" data-func="${func.id}" onchange="atualizarHorarioSelect(this)" 
-                                    style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 12px; text-align: center;"
-                                    ${horarioDisabled ? 'disabled' : ''}>
-                                <option value="">-- Selecione o horário --</option>
-                                <option value="07:00 às 15:20" ${horario === '07:00 às 15:20' ? 'selected' : ''}>🌅 07:00 às 15:20</option>
-                                <option value="15:00 às 23:20" ${horario === '15:00 às 23:20' ? 'selected' : ''}>🌙 15:00 às 23:20</option>
-                                <option value="personalizado" ${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:20' && horario !== '' ? 'selected' : ''}>✏️ Personalizado...</option>
-                            </select>
+                            <div class="horarios-container" data-data="${dia.data}" data-func="${func.id}">
+                                ${renderizarHorarios(horarios, dia.data, func.id)}
+                            </div>
+
+                            <input type="text" 
+                                placeholder="R$ 0,00" 
+                                value="${formatarMoedaInput((escalaData[dia.data] && escalaData[dia.data][func.id]?.adicional) || 0)}"
+                                data-data="${dia.data}" 
+                                data-func="${func.id}"
+                                oninput="formatarMoeda(this)"
+                                onchange="salvarAdicionalFormatado(this)"
+                                style="width: 100%; margin-top: 6px; padding: 5px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 11px;">
                             
-                            <input type="text" class="horario-personalizado" placeholder="Ex: 08:00 às 17:00" value="${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:20' && horario !== '' ? horario : ''}" 
-                                   style="width: 100%; margin-top: 5px; padding: 6px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 11px; display: ${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:20' && horario !== '' ? 'block' : 'none'};"
-                                   data-data="${dia.data}" data-func="${func.id}" onchange="atualizarHorarioPersonalizado(this)">
-                        </td>
+                            <button type="button" class="btn-add-horario" data-data="${dia.data}" data-func="${func.id}" 
+                                    onclick="adicionarHorario('${dia.data}', ${func.id})"
+                                    style="width: 100%; margin-top: 5px; padding: 4px; font-size: 10px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; ${status !== 'trabalha' ? 'display: none;' : ''}">
+                                + Adicionar Horário
+                            </button>
+                         </td>
                     `;
                 }).join('')}
-            </tr>
+            </table>
         `;
     }).join('');
     
@@ -385,25 +458,55 @@ function renderizarTabelaEscala() {
     setTimeout(() => {
         document.querySelectorAll('.status-select').forEach(select => {
             const td = select.closest('td');
-            if (td) {
-                const horarioSelect = td.querySelector('.horario-select');
-                const horarioPersonalizado = td.querySelector('.horario-personalizado');
-                const isTrabalha = select.value === 'trabalha';
-                
-                if (horarioSelect) {
-                    horarioSelect.disabled = !isTrabalha;
-                }
-                
-                if (horarioPersonalizado) {
-                    if (horarioSelect && horarioSelect.value === 'personalizado' && isTrabalha) {
-                        horarioPersonalizado.style.display = 'block';
-                    } else {
-                        horarioPersonalizado.style.display = 'none';
-                    }
-                }
+            const btnAdd = td ? td.querySelector('.btn-add-horario') : null;
+            const isTrabalha = select.value === 'trabalha';
+            
+            if (btnAdd) {
+                btnAdd.style.display = isTrabalha ? 'block' : 'none';
             }
         });
     }, 50);
+}
+
+// Função para renderizar os horários
+function renderizarHorarios(horarios, data, funcId) {
+    if (!horarios || horarios.length === 0) {
+        return `<div class="horario-item" style="margin-bottom: 5px;">
+                    <select class="horario-select" data-data="${data}" data-func="${funcId}" data-index="0" onchange="atualizarHorarioSelect(this)" 
+                            style="width: 100%; padding: 5px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 11px;">
+                        <option value="">-- Selecione o horário --</option>
+                        <option value="07:00 às 15:20">🌅 07:00 às 15:20 (R$ 90,00)</option>
+                        <option value="15:00 às 23:30">🌙 15:00 às 23:30 (R$ 90,00)</option>
+                        <option value="07:00 às 23:30">🔄 07:00 às 23:30 (Dobro - R$ 180,00)</option>
+                        <option value="personalizado">✏️ Personalizado...</option>
+                    </select>
+                    <input type="text" class="horario-personalizado" placeholder="Ex: 08:00 às 17:00" 
+                           style="width: 100%; margin-top: 4px; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 10px; display: none;">
+                </div>`;
+    }
+    
+    let html = '';
+    horarios.forEach((horario, index) => {
+        html += `
+            <div class="horario-item" style="margin-bottom: 5px; position: relative;">
+                <select class="horario-select" data-data="${data}" data-func="${funcId}" data-index="${index}" onchange="atualizarHorarioSelect(this)" 
+                        style="width: calc(100% - 25px); padding: 5px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 11px; display: inline-block;">
+                    <option value="">-- Selecione o horário --</option>
+                    <option value="07:00 às 15:20" ${horario === '07:00 às 15:20' ? 'selected' : ''}>🌅 07:00 às 15:20 (R$ 90,00)</option>
+                    <option value="15:00 às 23:30" ${horario === '15:00 às 23:30' ? 'selected' : ''}>🌙 15:00 às 23:30 (R$ 90,00)</option>
+                    <option value="07:00 às 23:30" ${horario === '07:00 às 23:30' ? 'selected' : ''}>🔄 07:00 às 23:30 (Dobro - R$ 180,00)</option>
+                    <option value="personalizado" ${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:30' && horario !== '07:00 às 23:30' && horario !== '' ? 'selected' : ''}>✏️ Personalizado...</option>
+                </select>
+                <button type="button" class="btn-remove-horario" onclick="removerHorario('${data}', ${funcId}, ${index})"
+                        style="width: 20px; margin-left: 4px; padding: 4px; font-size: 10px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; display: inline-block;">
+                    ✕
+                </button>
+                <input type="text" class="horario-personalizado" placeholder="Ex: 08:00 às 17:00" value="${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:30' && horario !== '07:00 às 23:30' ? horario : ''}" 
+                       style="width: 100%; margin-top: 4px; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 10px; display: ${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:30' && horario !== '07:00 às 23:30' && horario !== '' ? 'block' : 'none'};">
+            </div>
+        `;
+    });
+    return html;
 }
 
 function atualizarStatus(select) {
@@ -412,60 +515,27 @@ function atualizarStatus(select) {
     const status = select.value;
     
     const td = select.closest('td');
-    const horarioSelect = td ? td.querySelector('.horario-select') : null;
-    const horarioPersonalizado = td ? td.querySelector('.horario-personalizado') : null;
+    const btnAdd = td ? td.querySelector('.btn-add-horario') : null;
     
     if (status === 'trabalha') {
-        if (horarioSelect) {
-            horarioSelect.disabled = false;
-        }
+        if (btnAdd) btnAdd.style.display = 'block';
         if (!escalaData[data]) escalaData[data] = {};
-        if (!escalaData[data][funcId]) escalaData[data][funcId] = {};
-        escalaData[data][funcId].status = 'trabalha';
-        
-        // Verificar se já tem horário
-        const horarioAtual = escalaData[data][funcId].horario;
-        if (horarioSelect && horarioAtual) {
-            if (horarioAtual === '07:00 às 15:20' || horarioAtual === '15:00 às 23:20') {
-                horarioSelect.value = horarioAtual;
-            } else if (horarioAtual) {
-                horarioSelect.value = 'personalizado';
-                if (horarioPersonalizado) {
-                    horarioPersonalizado.value = horarioAtual;
-                    horarioPersonalizado.style.display = 'block';
-                }
-            }
+        if (!escalaData[data][funcId]) {
+            escalaData[data][funcId] = { status: 'trabalha', horarios: [], adicional: 0 };
         }
-        
+        escalaData[data][funcId].status = 'trabalha';
         console.log(`✅ Trabalha: Funcionário ${funcId} no dia ${data}`);
     } 
     else if (status === 'folga') {
-        if (horarioSelect) {
-            horarioSelect.disabled = true;
-            horarioSelect.value = '';
-        }
-        if (horarioPersonalizado) {
-            horarioPersonalizado.disabled = true;
-            horarioPersonalizado.value = '';
-            horarioPersonalizado.style.display = 'none';
-        }
+        if (btnAdd) btnAdd.style.display = 'none';
         if (!escalaData[data]) escalaData[data] = {};
         if (!escalaData[data][funcId]) escalaData[data][funcId] = {};
         escalaData[data][funcId].status = 'folga';
-        escalaData[data][funcId].horario = '';
-        
+        escalaData[data][funcId].horarios = [];
         console.log(`❌ Folga: Funcionário ${funcId} no dia ${data}`);
     }
     else if (status === 'excluir') {
-        if (horarioSelect) {
-            horarioSelect.disabled = true;
-            horarioSelect.value = '';
-        }
-        if (horarioPersonalizado) {
-            horarioPersonalizado.disabled = true;
-            horarioPersonalizado.value = '';
-            horarioPersonalizado.style.display = 'none';
-        }
+        if (btnAdd) btnAdd.style.display = 'none';
         if (escalaData[data] && escalaData[data][funcId]) {
             delete escalaData[data][funcId];
             if (Object.keys(escalaData[data]).length === 0) {
@@ -473,19 +543,10 @@ function atualizarStatus(select) {
             }
         }
         select.value = '';
-        
         console.log(`🗑️ Excluído: Escala do funcionário ${funcId} removida no dia ${data}`);
     }
     else {
-        if (horarioSelect) {
-            horarioSelect.disabled = true;
-            horarioSelect.value = '';
-        }
-        if (horarioPersonalizado) {
-            horarioPersonalizado.disabled = true;
-            horarioPersonalizado.value = '';
-            horarioPersonalizado.style.display = 'none';
-        }
+        if (btnAdd) btnAdd.style.display = 'none';
         if (escalaData[data] && escalaData[data][funcId]) {
             delete escalaData[data][funcId];
             if (Object.keys(escalaData[data]).length === 0) {
@@ -497,54 +558,167 @@ function atualizarStatus(select) {
     salvarEscalaGeral();
 }
 
-// Função para atualizar horário pelo select
-function atualizarHorarioSelect(select) {
-    const data = select.getAttribute('data-data');
-    const funcId = parseInt(select.getAttribute('data-func'));
-    const valor = select.value;
-    const td = select.closest('td');
-    const horarioPersonalizado = td ? td.querySelector('.horario-personalizado') : null;
+// Adicionar novo horário
+function adicionarHorario(data, funcId) {
+    if (!escalaData[data]) escalaData[data] = {};
+    if (!escalaData[data][funcId]) {
+        escalaData[data][funcId] = { status: 'trabalha', horarios: [], adicional: 0 };
+    }
+    if (!escalaData[data][funcId].horarios) {
+        escalaData[data][funcId].horarios = [];
+    }
     
-    if (valor === 'personalizado') {
-        if (horarioPersonalizado) {
-            horarioPersonalizado.style.display = 'block';
-            horarioPersonalizado.focus();
+    escalaData[data][funcId].horarios.push('');
+    salvarEscalaGeral();
+    carregarSemana(); // Recarregar para mostrar o novo campo
+}
+
+// Remover horário
+function removerHorario(data, funcId, index) {
+    if (escalaData[data] && escalaData[data][funcId] && escalaData[data][funcId].horarios) {
+        escalaData[data][funcId].horarios.splice(index, 1);
+        if (escalaData[data][funcId].horarios.length === 0) {
+            delete escalaData[data][funcId];
+            if (Object.keys(escalaData[data]).length === 0) {
+                delete escalaData[data];
+            }
         }
-    } else if (valor !== '') {
-        if (horarioPersonalizado) {
-            horarioPersonalizado.style.display = 'none';
-            horarioPersonalizado.value = '';
-        }
-        
-        if (!escalaData[data]) escalaData[data] = {};
-        if (!escalaData[data][funcId]) escalaData[data][funcId] = {};
-        escalaData[data][funcId].horario = valor;
         salvarEscalaGeral();
-        console.log(`⏰ Horário ${valor} salvo`);
+        carregarSemana();
     }
 }
 
-// Função para atualizar horário personalizado
+// Atualizar horário no select
+function atualizarHorarioSelect(select) {
+    const data = select.getAttribute('data-data');
+    const funcId = parseInt(select.getAttribute('data-func'));
+    const index = parseInt(select.getAttribute('data-index'));
+    const valor = select.value;
+    const divHorario = select.closest('.horario-item');
+    const inputPersonalizado = divHorario ? divHorario.querySelector('.horario-personalizado') : null;
+    
+    if (valor === 'personalizado') {
+        if (inputPersonalizado) {
+            inputPersonalizado.style.display = 'block';
+            inputPersonalizado.focus();
+        }
+        return;
+    }
+    
+    if (inputPersonalizado) {
+        inputPersonalizado.style.display = 'none';
+        inputPersonalizado.value = '';
+    }
+    
+    if (!escalaData[data]) escalaData[data] = {};
+    if (!escalaData[data][funcId]) {
+        escalaData[data][funcId] = { status: 'trabalha', horarios: [], adicional: 0 };
+    }
+    
+    if (!escalaData[data][funcId].horarios) {
+        escalaData[data][funcId].horarios = [];
+    }
+    
+    escalaData[data][funcId].horarios[index] = valor;
+    salvarEscalaGeral();
+    
+    console.log(`⏰ Horário "${valor}" salvo para funcionário ${funcId} no dia ${data}`);
+}
+
+// Atualizar horário personalizado
 function atualizarHorarioPersonalizado(input) {
     const data = input.getAttribute('data-data');
     const funcId = parseInt(input.getAttribute('data-func'));
+    const index = parseInt(input.getAttribute('data-index'));
     const horario = input.value;
-    const td = input.closest('td');
-    const horarioSelect = td ? td.querySelector('.horario-select') : null;
+    const divHorario = input.closest('.horario-item');
+    const select = divHorario ? divHorario.querySelector('.horario-select') : null;
     
     if (horario !== '') {
         if (!escalaData[data]) escalaData[data] = {};
-        if (!escalaData[data][funcId]) escalaData[data][funcId] = {};
-        escalaData[data][funcId].horario = horario;
-        salvarEscalaGeral();
-        console.log(`⏰ Horário personalizado "${horario}" salvo`);
-        
-        // Marcar a opção personalizada no select
-        if (horarioSelect) {
-            horarioSelect.value = 'personalizado';
+        if (!escalaData[data][funcId]) {
+            escalaData[data][funcId] = { status: 'trabalha', horarios: [], adicional: 0 };
         }
+        if (!escalaData[data][funcId].horarios) {
+            escalaData[data][funcId].horarios = [];
+        }
+        
+        escalaData[data][funcId].horarios[index] = horario;
+        salvarEscalaGeral();
+        
+        if (select) {
+            select.value = 'personalizado';
+        }
+        
+        console.log(`⏰ Horário personalizado "${horario}" salvo`);
     }
 }
+
+// ==========================
+// 💰 FORMATAÇÃO DE MOEDA (ADICIONAL)
+// ==========================
+
+// Formata enquanto digita (R$ 0,00)
+function formatarMoeda(input) {
+    let valor = input.value.replace(/\D/g, '');
+    
+    valor = (parseInt(valor || 0) / 100).toFixed(2) + '';
+    valor = valor.replace(".", ",");
+    valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    
+    input.value = 'R$ ' + valor;
+}
+
+// Salva o valor corretamente como número
+function salvarAdicionalFormatado(input) {
+    const data = input.getAttribute('data-data');
+    const funcId = parseInt(input.getAttribute('data-func'));
+
+    let valor = input.value
+        .replace('R$', '')
+        .replace(/\./g, '')
+        .replace(',', '.')
+        .trim();
+
+    valor = parseFloat(valor) || 0;
+
+    if (!escalaData[data]) escalaData[data] = {};
+    if (!escalaData[data][funcId]) {
+        escalaData[data][funcId] = { status: 'trabalha', horarios: [], adicional: 0 };
+    }
+
+    escalaData[data][funcId].adicional = valor;
+
+    salvarEscalaGeral();
+
+    console.log(`💰 Adicional salvo: R$ ${valor}`);
+}
+
+// Formata valor ao carregar na tela
+function formatarMoedaInput(valor) {
+    return (valor || 0).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    });
+}
+
+function atualizarAdicional(input) {
+    const data = input.getAttribute('data-data');
+    const funcId = parseInt(input.getAttribute('data-func'));
+    const valor = parseFloat(input.value) || 0;
+
+    if (!escalaData[data]) escalaData[data] = {};
+    if (!escalaData[data][funcId]) {
+        escalaData[data][funcId] = { status: 'trabalha', horarios: [], adicional: 0 };
+    }
+
+    escalaData[data][funcId].adicional = valor;
+
+    salvarEscalaGeral();
+
+    console.log(`💰 Adicional salvo: R$ ${valor} para funcionário ${funcId} em ${data}`);
+}
+
 
 function limparTodosDados() {
     if (confirm("⚠️ ATENÇÃO! Isso vai apagar TODOS os funcionários e escalas. Tem certeza?")) {
@@ -595,7 +769,17 @@ function atualizarResumoPagamentos() {
             // Só conta se existir e o status for EXATAMENTE "trabalha"
             if (escala && escala.status === 'trabalha') {
                 diasTrabalhados++;
-                diasDetalhes.push(dia);
+                const valorDia = calcularValorDia(func, dataStr);
+                let totalValor = 0;
+                for (let dia = 1; dia <= diasNoMes; dia++) {
+                    const dataStr = `${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+                    const escala = escalaData[dataStr] && escalaData[dataStr][func.id];
+                    if (escala && escala.status === 'trabalha') {
+                        diasTrabalhados++;
+                        const valorDia = calcularValorDia(func, dataStr);
+                        totalValor += valorDia;
+                    }
+                }
             }
         }
         
@@ -604,7 +788,7 @@ function atualizarResumoPagamentos() {
         return { 
             ...func, 
             diasTrabalhados, 
-            total: diasTrabalhados * func.diaria 
+            total: totalValor
         };
     });
     
@@ -673,94 +857,50 @@ function salvarPagamentosStorage() {
 // ========== FUNÇÕES DE PAGAMENTOS NO FIREBASE ==========
 
 async function carregarPagamentosFirebase() {
-    try {
-        if (!db) return;
-        
-        const snapshot = await db.collection('pagamentos').get();
-        pagamentosData = {};
-        
-        snapshot.forEach(doc => {
-            const item = doc.data();
-            const data = item.data;
-            const funcId = item.funcionario_id;
-            
-            if (!pagamentosData[data]) pagamentosData[data] = {};
-            pagamentosData[data][funcId] = item.pago;
-        });
-        
-        console.log(`✅ ${snapshot.docs.length} registros de pagamentos carregados`);
-    } catch (error) {
-        console.error("Erro ao carregar pagamentos:", error);
-    }
+    if (!db) return;
+    const snapshot = await db.collection('pagamentos').get();
+    pagamentosData = {};
+    snapshot.forEach(doc => {
+        const item = doc.data();
+        if (!pagamentosData[item.data]) pagamentosData[item.data] = {};
+        pagamentosData[item.data][item.funcionario_id] = item.pagamentos || [true];
+    });
 }
 
 async function salvarPagamentosFirebase() {
-    try {
-        if (!db) return;
-        
-        const batch = db.batch();
-        
-        // Limpar documentos antigos da coleção
-        const snapshot = await db.collection('pagamentos').get();
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        
-        // Adicionar os pagamentos atuais
-        for (const [data, funcionarios] of Object.entries(pagamentosData)) {
-            for (const [funcId, pago] of Object.entries(funcionarios)) {
-                if (pago === true) {
-                    const docRef = db.collection('pagamentos').doc(`${data}_${funcId}`);
-                    batch.set(docRef, {
-                        data: data,
-                        funcionario_id: parseInt(funcId),
-                        pago: true,
-                        atualizado_em: new Date()
-                    });
-                }
-            }
+    if (!db) return;
+    const batch = db.batch();
+    const snapshot = await db.collection('pagamentos').get();
+    snapshot.forEach(doc => batch.delete(doc.ref));
+    
+    for (const [data, funcs] of Object.entries(pagamentosData)) {
+        for (const [funcId, pagos] of Object.entries(funcs)) {
+            batch.set(db.collection('pagamentos').doc(`${data}_${funcId}`), { 
+                data, 
+                funcionario_id: parseInt(funcId), 
+                pagamentos: pagos  // salvar array de pagamentos
+            });
         }
-        
-        await batch.commit();
-        console.log("✅ Pagamentos salvos no Firebase");
-        
-        // Backup local
-        localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
-        
-        return true;
-    } catch (error) {
-        console.error("Erro ao salvar pagamentos:", error);
-        return false;
     }
+    await batch.commit();
 }
 
 
 // Carregar tela de pagamentos
 async function carregarPagamentos() {
+    await carregarPagamentosFirebase();
     const mesInput = document.getElementById("mesPagamento");
     if (!mesInput.value) {
         const hoje = new Date();
-        mesInput.value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+        mesInput.value = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
     }
-    
-    mesSelecionado = mesInput.value;
-    const [ano, mes] = mesSelecionado.split('-');
+    const [ano, mes] = mesInput.value.split('-');
     const diasNoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
-    
-    // Carregar do Firebase primeiro
-    await carregarPagamentosFirebase();
-    
-    const funcionariosAtivos = funcionarios.filter(f => f.status === true);
     const container = document.getElementById("pagamentosContainer");
+    const funcionariosAtivos = funcionarios.filter(f => f.status === true);
     
-    // Se não houver funcionários
     if (funcionariosAtivos.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state" style="text-align: center; padding: 40px;">
-                <p>📋 Nenhum funcionário cadastrado</p>
-                <small>Cadastre funcionários na aba "Funcionários"</small>
-            </div>
-        `;
+        container.innerHTML = '<div style="text-align:center;padding:40px;">Nenhum funcionário cadastrado</div>';
         return;
     }
     
@@ -775,9 +915,10 @@ async function carregarPagamentos() {
     let funcionariosHTML = '';
     let totaisPorFuncionario = [];
     
-    funcionariosAtivos.forEach(func => {
+    for (const func of funcionariosAtivos) {
         let diasPagos = 0;
         let diasTrabalhados = 0;
+        let valorTotalFunc = 0;
         let funcionarioDiasHTML = '';
         
         for (let dia = 1; dia <= diasNoMes; dia++) {
@@ -788,33 +929,37 @@ async function carregarPagamentos() {
             const trabalhou = escala && escala.status === 'trabalha';
             
             if (trabalhou) {
-                diasTrabalhados++;
+                const valorDia = calcularValorDia(func, dataStr);
+                if (valorDia > 0) {
+                    diasTrabalhados++;
+                    valorTotalFunc += valorDia;
+                }
             }
             
-            // Verificar se o dia foi pago
-            const pago = pagamentosData[dataStr] && pagamentosData[dataStr][func.id] === true;
-            if (pago) diasPagos++;
+            // Verificar pagamentos (array)
+            const pagamentosArr = pagamentosData[dataStr] && pagamentosData[dataStr][func.id] ? pagamentosData[dataStr][func.id] : [];
+            const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
+            const qtdePagos = pagamentosArr.filter(p => p === true).length;
             
-            // Botão ou badge
+            if (qtdePagos === numHorarios && numHorarios > 0) {
+                diasPagos++;
+            }
+            
+            const todosPagos = (numHorarios > 0 && pagamentosArr.length === numHorarios && pagamentosArr.every(p => p === true));
+            
             let botoesHTML = '';
             if (trabalhou) {
-                if (pago) {
+                if (todosPagos) {
                     botoesHTML = `
                         <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                            <span style="background: #16a34a; color: white; padding: 4px 8px; border-radius: 20px; font-size: 10px; font-weight: bold; white-space: nowrap;">
-                                ✅ PAGO
-                            </span>
-                            <button onclick="desfazerPagamento('${dataStr}', ${func.id})" 
-                                style="background: #dc2626; color: white; border: none; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: bold; white-space: nowrap;">
-                                ↺ DESFAZER
-                            </button>
+                            <span style="background: #16a34a; color: white; padding: 4px 8px; border-radius: 20px; font-size: 10px; font-weight: bold;">✅ PAGO</span>
+                            <button onclick="desfazerPagamento('${dataStr}', ${func.id})" style="background: #dc2626; color: white; border: none; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 9px;">↺ DESFAZER</button>
                         </div>
                     `;
                 } else {
                     botoesHTML = `
-                        <button onclick="marcarDiaPago('${dataStr}', ${func.id})" 
-                            style="background: #f59e0b; color: white; border: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; white-space: nowrap;">
-                            💰 PAGAR
+                        <button onclick="marcarDiaPago('${dataStr}', ${func.id})" style="background: #f59e0b; color: white; border: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold;">
+                            💰 PAGAR ${numHorarios > 1 ? `(${qtdePagos}/${numHorarios})` : ''}
                         </button>
                     `;
                 }
@@ -822,16 +967,36 @@ async function carregarPagamentos() {
                 botoesHTML = `<span style="color: #cbd5e1;">—</span>`;
             }
             
-            funcionarioDiasHTML += `
-                <td style="padding: 8px 4px; text-align: center; border-bottom: 1px solid #e2e8f0; background: ${pago ? '#dcfce7' : 'white'};">
-                    ${botoesHTML}
-                </td>
-            `;
+            funcionarioDiasHTML += `<td style="padding: 8px 4px; text-align: center; border-bottom: 1px solid #e2e8f0; background: ${todosPagos ? '#dcfce7' : 'white'};">${botoesHTML}</td>`;
         }
         
-        const totalReceber = diasTrabalhados * func.diaria;
-        const totalPago = diasPagos * func.diaria;
-        const totalPendente = totalReceber - totalPago;
+        const totalReceber = valorTotalFunc;
+        let totalPago = 0;
+
+        for (let dia = 1; dia <= diasNoMes; dia++) {
+            const dataStr = `${ano}-${mes}-${String(dia).padStart(2, '0')}`;
+            
+            const escala = escalaData[dataStr] && escalaData[dataStr][func.id];
+            const trabalhou = escala && escala.status === 'trabalha';
+
+            if (trabalhou) {
+                const pagamentosArr = pagamentosData[dataStr] && pagamentosData[dataStr][func.id] 
+                    ? pagamentosData[dataStr][func.id] 
+                    : [];
+
+                const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
+
+                const todosPagos = (
+                    numHorarios > 0 &&
+                    pagamentosArr.length === numHorarios &&
+                    pagamentosArr.every(p => p === true)
+                );
+
+                if (todosPagos) {
+                    totalPago += calcularValorDia(func, dataStr); // 🔥 CORRETO
+                }
+            }
+        }
         
         totaisPorFuncionario.push({
             nome: func.nome,
@@ -839,7 +1004,6 @@ async function carregarPagamentos() {
             diasPagos,
             totalReceber,
             totalPago,
-            totalPendente,
             id: func.id
         });
         
@@ -852,14 +1016,12 @@ async function carregarPagamentos() {
                 ${funcionarioDiasHTML}
             </tr>
         `;
-    });
+    }
     
-    // Calcular totais gerais
     const totalGeralReceber = totaisPorFuncionario.reduce((sum, f) => sum + f.totalReceber, 0);
     const totalGeralPago = totaisPorFuncionario.reduce((sum, f) => sum + f.totalPago, 0);
     const totalGeralPendente = totalGeralReceber - totalGeralPago;
     
-    // Montar HTML completo
     container.innerHTML = `
         <div class="resumo-pagamento" style="background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
             <h4 style="margin-bottom: 10px;">📊 Resumo do Mês ${mes}/${ano}</h4>
@@ -899,18 +1061,46 @@ async function carregarPagamentos() {
 // Marcar um dia específico como pago
 async function marcarDiaPago(dataStr, funcId) {
     if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
-    pagamentosData[dataStr][funcId] = true;
     
-    // Salvar no Firebase
+    // Verificar quantos horários o funcionário tem neste dia
+    const escala = escalaData[dataStr] && escalaData[dataStr][funcId];
+    const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
+    
+    // Inicializar array de pagamentos
+    if (!pagamentosData[dataStr][funcId]) {
+        pagamentosData[dataStr][funcId] = new Array(numHorarios).fill(false);
+    }
+    
+    // Marcar TODOS os horários como pagos
+    pagamentosData[dataStr][funcId] = pagamentosData[dataStr][funcId].map(() => true);
+    
     await salvarPagamentosFirebase();
-    
-    // Também salvar no localStorage como backup
-    localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
-    
-    // Recarregar a tela para mostrar atualizado
     carregarPagamentos();
-    
-    console.log(`✅ Pagamento registrado: Funcionário ${funcId} em ${dataStr}`);
+    console.log(`✅ Pagamento registrado: Funcionário ${funcId} em ${dataStr} (${numHorarios} horário(s))`);
+}
+
+async function desfazerPagamento(dataStr, funcId) {
+    if (confirm("Desfazer pagamento deste dia?")) {
+        if (pagamentosData[dataStr] && pagamentosData[dataStr][funcId]) {
+            const escala = escalaData[dataStr] && escalaData[dataStr][funcId];
+            const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
+            pagamentosData[dataStr][funcId] = new Array(numHorarios).fill(false);
+            
+            // Se não houver pagamentos, remover entrada
+            const todosFalse = pagamentosData[dataStr][funcId].every(p => p === false);
+            if (todosFalse) {
+                delete pagamentosData[dataStr][funcId];
+            }
+            
+            if (pagamentosData[dataStr] && Object.keys(pagamentosData[dataStr]).length === 0) {
+                delete pagamentosData[dataStr];
+            }
+        }
+        
+        await salvarPagamentosFirebase();
+        carregarPagamentos();
+        console.log(`↺ Pagamento desfeito: Funcionário ${funcId} em ${dataStr}`);
+    }
 }
 
 // Marcar todos os dias do mês como pagos para todos os funcionários
@@ -949,23 +1139,36 @@ async function marcarTodosPagos() {
 }
 
 // Desfazer pagamento (estornar)
-async function desfazerPagamento(dataStr, funcId) {
-    if (confirm("⚠️ Desfazer pagamento deste dia?")) {
-        if (pagamentosData[dataStr] && pagamentosData[dataStr][funcId]) {
-            delete pagamentosData[dataStr][funcId];
-            if (Object.keys(pagamentosData[dataStr]).length === 0) {
-                delete pagamentosData[dataStr];
-            }
-            
-            // Salvar no Firebase
+async function desfazerPagamento(dataStr, funcId, horarioIndex = null) {
+    if (confirm("Desfazer pagamento?")) {
+        if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
+        if (!pagamentosData[dataStr][funcId]) {
             await salvarPagamentosFirebase();
-            
-            // Atualizar localStorage
-            localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
-            
             carregarPagamentos();
-            console.log(`↺ Pagamento desfeito: Funcionário ${funcId} em ${dataStr}`);
+            return;
         }
+        
+        if (horarioIndex !== null) {
+            // Desfazer pagamento de horário específico
+            pagamentosData[dataStr][funcId][horarioIndex] = false;
+        } else {
+            // Desfazer todos os pagamentos do dia
+            pagamentosData[dataStr][funcId] = pagamentosData[dataStr][funcId].map(() => false);
+        }
+        
+        // Se todos os horários estão false, remover entrada
+        const todosFalse = pagamentosData[dataStr][funcId].every(p => p === false);
+        if (todosFalse) {
+            delete pagamentosData[dataStr][funcId];
+        }
+        
+        if (pagamentosData[dataStr] && Object.keys(pagamentosData[dataStr]).length === 0) {
+            delete pagamentosData[dataStr];
+        }
+        
+        await salvarPagamentosFirebase();
+        carregarPagamentos();
+        console.log(`↺ Pagamento desfeito: Funcionário ${funcId} em ${dataStr}${horarioIndex !== null ? ` horário ${horarioIndex+1}` : ''}`);
     }
 }
 

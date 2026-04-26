@@ -329,102 +329,102 @@
             min-width: 130px;
         }
 
-        /* Selects e inputs dentro da tabela */
-        .escala-table select,
-        .escala-table input {
-            font-size: 12px;
-            padding: 6px;
+        /* ========== CORREÇÃO DOS SELECTS DE HORÁRIO ========== */
+
+        /* Ajuste para todos os selects da tabela de escala */
+        .escala-table select {
+            font-size: 11px;
+            padding: 6px 8px;
             border-radius: 8px;
             border: 1px solid #cbd5e1;
             width: 100%;
             max-width: 130px;
+            background-color: white;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+            background-repeat: no-repeat;
+            background-position: right 6px center;
+            background-size: 14px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
         }
 
+        /* Select de status */
         .escala-table .status-select {
-            margin-bottom: 6px;
+            margin-bottom: 8px;
+            font-size: 11px;
+            padding: 6px 8px;
+            background-position: right 6px center;
         }
 
-        /* ========== RESPONSIVO PARA PC (SEM ROLAGEM) ========== */
+        /* Select de horário */
+        .escala-table .horario-select {
+            font-size: 11px;
+            padding: 6px 8px;
+            background-position: right 6px center;
+        }
+
+        /* Input de horário personalizado */
+        .escala-table .horario-personalizado {
+            font-size: 10px;
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            width: 100%;
+            max-width: 130px;
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        /* Opções do select (estilo) */
+        .escala-table select option {
+            font-size: 11px;
+            padding: 4px;
+        }
+
+        /* RESPONSIVO PARA PC */
         @media (min-width: 1200px) {
-            .escala-table-container {
-                overflow-x: visible;
-            }
-            
-            .escala-table {
-                min-width: 100%;
-                table-layout: fixed;
-            }
-            
-            .escala-table th {
-                font-size: 12px;
-                padding: 10px 4px;
-                white-space: nowrap;
-            }
-            
-            .escala-table td {
-                padding: 8px 4px;
-            }
-            
-            .escala-table select,
-            .escala-table input {
-                font-size: 11px;
-                padding: 5px;
+            .escala-table select {
+                font-size: 10px;
+                padding: 5px 8px;
                 max-width: 115px;
+                background-size: 12px;
+                background-position: right 4px center;
             }
             
-            .escala-table .funcionario-nome {
-                min-width: 120px;
+            .escala-table .status-select {
+                font-size: 10px;
+                margin-bottom: 6px;
+            }
+            
+            .escala-table .horario-select {
+                font-size: 10px;
             }
         }
 
-        /* ========== RESPONSIVO PARA NOTEBOOK ========== */
+        /* RESPONSIVO PARA NOTEBOOK */
         @media (min-width: 768px) and (max-width: 1199px) {
-            .escala-table-container {
-                overflow-x: auto;
-            }
-            
-            .escala-table {
-                min-width: 800px;
-            }
-            
-            .escala-table th {
-                font-size: 11px;
-                padding: 8px 3px;
-            }
-            
-            .escala-table td {
-                padding: 6px 3px;
-            }
-            
-            .escala-table select,
-            .escala-table input {
+            .escala-table select {
                 font-size: 10px;
-                padding: 4px;
+                padding: 5px 6px;
                 max-width: 105px;
+                background-size: 11px;
+                background-position: right 4px center;
             }
         }
 
-        /* ========== RESPONSIVO PARA CELULAR ========== */
+        /* RESPONSIVO PARA CELULAR */
         @media (max-width: 767px) {
-            .escala-table-container {
-                overflow-x: auto;
-            }
-            
-            .escala-table {
-                min-width: 700px;
-            }
-            
-            .escala-table th,
-            .escala-table td {
-                font-size: 10px;
-                padding: 6px 3px;
-            }
-            
-            .escala-table select,
-            .escala-table input {
+            .escala-table select {
                 font-size: 9px;
-                padding: 4px;
+                padding: 4px 6px;
                 max-width: 95px;
+                background-size: 10px;
+                background-position: right 3px center;
             }
         }
 
@@ -735,12 +735,12 @@
         <div id="tab-escala" class="tab-content" style="display: none;">
             <div class="card">
                 <div class="card-header">
-                <h3>📅 Escala Semanal</h3>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn-primary" onclick="exportarEscalaPDF()" style="background: #dc2626;">📄 Exportar PDF</button>
-                    <button class="btn-primary" onclick="salvarEscalaSemana()">💾 Salvar Escala</button>
-                </div>
+            <h3>📅 Escala Semanal</h3>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-primary" onclick="exportarEscalaPDF()" style="background: #dc2626;">📄 Exportar PDF</button>
+                <button class="btn-primary" onclick="salvarEscalaSemana()">💾 Salvar Escala</button>
             </div>
+        </div>
                 <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">
                     👆 Selecione a semana e defina o status e horário para cada funcionário
                 </p>
