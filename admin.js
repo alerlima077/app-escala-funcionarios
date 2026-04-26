@@ -122,10 +122,70 @@ function carregarEscala() {
     }
 }
 
-function salvarEscalaGeral() {
-    // Salvar apenas escala, não funcionários
-    localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
+async function salvarEscalaGeral() {
+    await salvarEscalaFirebase();
     alert("✅ Escala salva com sucesso!");
+}
+
+// ========== FUNÇÕES DE ESCALA NO FIREBASE ==========
+
+async function carregarEscalaFirebase() {
+    try {
+        if (!db) return;
+        
+        const snapshot = await db.collection('escala').get();
+        escalaData = {};
+        
+        snapshot.forEach(doc => {
+            const item = doc.data();
+            const data = item.data;
+            const funcId = item.funcionario_id;
+            
+            if (!escalaData[data]) escalaData[data] = {};
+            escalaData[data][funcId] = {
+                status: item.status,
+                horario: item.horario || ''
+            };
+        });
+        
+        console.log(`✅ ${snapshot.docs.length} registros de escala carregados`);
+    } catch (error) {
+        console.error("Erro ao carregar escala:", error);
+    }
+}
+
+async function salvarEscalaFirebase() {
+    try {
+        if (!db) return;
+        
+        const batch = db.batch();
+        
+        const snapshot = await db.collection('escala').get();
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        for (const [data, funcionarios] of Object.entries(escalaData)) {
+            for (const [funcId, dados] of Object.entries(funcionarios)) {
+                const docRef = db.collection('escala').doc();
+                batch.set(docRef, {
+                    data: data,
+                    funcionario_id: parseInt(funcId),
+                    status: dados.status,
+                    horario: dados.horario || ''
+                });
+            }
+        }
+        
+        await batch.commit();
+        console.log("✅ Escala salva no Firebase");
+        localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
+        
+        return true;
+    } catch (error) {
+        console.error("Erro ao salvar escala:", error);
+        return false;
+    }
 }
 
 // ========== FUNCIONÁRIOS ==========
@@ -485,6 +545,65 @@ function salvarPagamentosStorage() {
     localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
 }
 
+// ========== FUNÇÕES DE PAGAMENTOS NO FIREBASE ==========
+
+async function carregarPagamentosFirebase() {
+    try {
+        if (!db) return;
+        
+        const snapshot = await db.collection('pagamentos').get();
+        pagamentosData = {};
+        
+        snapshot.forEach(doc => {
+            const item = doc.data();
+            const data = item.data;
+            const funcId = item.funcionario_id;
+            
+            if (!pagamentosData[data]) pagamentosData[data] = {};
+            pagamentosData[data][funcId] = item.pago;
+        });
+        
+        console.log(`✅ ${snapshot.docs.length} registros de pagamentos carregados`);
+    } catch (error) {
+        console.error("Erro ao carregar pagamentos:", error);
+    }
+}
+
+async function salvarPagamentosFirebase() {
+    try {
+        if (!db) return;
+        
+        const batch = db.batch();
+        
+        const snapshot = await db.collection('pagamentos').get();
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        for (const [data, funcionarios] of Object.entries(pagamentosData)) {
+            for (const [funcId, pago] of Object.entries(funcionarios)) {
+                if (pago === true) {
+                    const docRef = db.collection('pagamentos').doc();
+                    batch.set(docRef, {
+                        data: data,
+                        funcionario_id: parseInt(funcId),
+                        pago: true
+                    });
+                }
+            }
+        }
+        
+        await batch.commit();
+        console.log("✅ Pagamentos salvos no Firebase");
+        localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
+        
+        return true;
+    } catch (error) {
+        console.error("Erro ao salvar pagamentos:", error);
+        return false;
+    }
+}
+
 // Carregar tela de pagamentos
 function carregarPagamentos() {
     const mesInput = document.getElementById("mesPagamento");
@@ -629,18 +748,16 @@ function carregarPagamentos() {
 }
 
 // Marcar um dia específico como pago
-function marcarDiaPago(dataStr, funcId) {
-    if (!pagamentosData[dataStr]) {
-        pagamentosData[dataStr] = {};
-    }
+async function marcarDiaPago(dataStr, funcId) {
+    if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
     pagamentosData[dataStr][funcId] = true;
-    salvarPagamentosStorage();
-    carregarPagamentos(); // Recarregar a tela
-    console.log(`✅ Pagamento registrado: Funcionário ${funcId} no dia ${dataStr}`);
+    await salvarPagamentosFirebase();
+    carregarPagamentos();
+    console.log(`✅ Pagamento registrado: Funcionário ${funcId} em ${dataStr}`);
 }
 
 // Marcar todos os dias do mês como pagos para todos os funcionários
-function marcarTodosPagos() {
+async function marcarTodosPagos() {
     if (!mesSelecionado) {
         const mesInput = document.getElementById("mesPagamento");
         if (!mesInput.value) {
@@ -660,7 +777,6 @@ function marcarTodosPagos() {
             const dataStr = `${ano}-${mes}-${String(dia).padStart(2, '0')}`;
             
             funcionariosAtivos.forEach(func => {
-                // Verificar se o funcionário trabalhou neste dia
                 const escala = escalaData[dataStr] && escalaData[dataStr][func.id];
                 if (escala && escala.status === 'trabalha') {
                     if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
@@ -669,32 +785,29 @@ function marcarTodosPagos() {
             });
         }
         
-        salvarPagamentosStorage();
+        await salvarPagamentosFirebase();
         carregarPagamentos();
         console.log("✅ Todos os dias foram marcados como pagos!");
     }
 }
 
 // Desfazer pagamento (estornar)
-function desfazerPagamento(dataStr, funcId) {
-    if (confirm(`⚠️ Tem certeza que deseja DESFAZER o pagamento deste dia?`)) {
+async function desfazerPagamento(dataStr, funcId) {
+    if (confirm("⚠️ Desfazer pagamento deste dia?")) {
         if (pagamentosData[dataStr] && pagamentosData[dataStr][funcId]) {
             delete pagamentosData[dataStr][funcId];
-            
-            // Se não houver mais pagamentos neste dia, remove o dia
             if (Object.keys(pagamentosData[dataStr]).length === 0) {
                 delete pagamentosData[dataStr];
             }
-            
-            salvarPagamentosStorage();
-            carregarPagamentos(); // Recarregar a tela
-            console.log(`↺ Pagamento estornado: Funcionário ${funcId} no dia ${dataStr}`);
+            await salvarPagamentosFirebase();
+            carregarPagamentos();
+            console.log(`↺ Pagamento desfeito: Funcionário ${funcId} em ${dataStr}`);
         }
     }
 }
 
 // Desfazer todos os pagamentos do mês
-function desfazerTodosPagamentos() {
+async function desfazerTodosPagamentos() {
     if (!mesSelecionado) {
         const mesInput = document.getElementById("mesPagamento");
         if (!mesInput.value) {
@@ -715,7 +828,7 @@ function desfazerTodosPagamentos() {
             }
         }
         
-        salvarPagamentosStorage();
+        await salvarPagamentosFirebase();
         carregarPagamentos();
         console.log("↺ Todos os pagamentos do mês foram desfeitos!");
     }
@@ -804,17 +917,25 @@ async function inicializarSistema() {
     console.log("🚀 Inicializando sistema...");
     
     await carregarDados();
+    await carregarEscalaFirebase();
+    await carregarPagamentosFirebase();
     
-    // Carregar dados de pagamento
-    carregarPagamentosStorage();
+    if (Object.keys(escalaData).length === 0) {
+        carregarEscala();
+    }
     
-    // Se a aba de pagamentos estiver ativa ao carregar, mostrar os dados
+    if (Object.keys(pagamentosData).length === 0) {
+        carregarPagamentosStorage();
+    }
+    
+    renderizarLista();
+    
     const abaPagamentos = document.getElementById("tab-pagamentos");
     if (abaPagamentos && abaPagamentos.style.display !== "none") {
         carregarPagamentos();
     }
     
-    console.log("✅ Sistema inicializado com sucesso!");
+    console.log("✅ Sistema inicializado com Firebase!");
 }
 
 // Inicializar o sistema
