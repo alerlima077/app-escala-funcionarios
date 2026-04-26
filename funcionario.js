@@ -1,21 +1,22 @@
 // ============================================
 // funcionario.js - Tela do Funcionário (Celular)
+// Versão CORRIGIDA
 // ============================================
 
 let funcionarioAtual = null;
 let escalaData = {};
+let pagamentosData = {};
 let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth();
-let diasDoMes = [];
 
 // ========== CONFIGURAÇÃO DO FIREBASE ==========
 const firebaseConfig = {
-  apiKey: "AIzaSyApDJcJ-bsiPJJLITXdlRtf82gzlSYtZRY",
-  authDomain: "app-escala-funcionarios.firebaseapp.com",
-  projectId: "app-escala-funcionarios",
-  storageBucket: "app-escala-funcionarios.firebasestorage.app",
-  messagingSenderId: "1066676645204",
-  appId: "1:1066676645204:web:3ce459ed8b8b76a7f92cc1"
+    apiKey: "AIzaSyApDJcJ-bsiPJJLITXdlRtf82gzlSYtZRY",
+    authDomain: "app-escala-funcionarios.firebaseapp.com",
+    projectId: "app-escala-funcionarios",
+    storageBucket: "app-escala-funcionarios.firebasestorage.app",
+    messagingSenderId: "1066676645204",
+    appId: "1:1066676645204:web:3ce459ed8b8b76a7f92cc1"
 };
 
 let db = null;
@@ -27,14 +28,11 @@ if (typeof firebase !== 'undefined') {
     console.log("✅ Firebase conectado no funcionario.js");
 }
 
+// ========== FUNÇÃO PARA CARREGAR ESCALA ==========
 async function carregarEscalaFirebase() {
     try {
         if (!db) {
-            console.log("⚠️ Firebase não disponível, usando localStorage");
-            const escalaSalva = localStorage.getItem("escala_funcionarios_escala");
-            if (escalaSalva) {
-                escalaData = JSON.parse(escalaSalva);
-            }
+            console.log("⚠️ Firebase não disponível");
             return;
         }
         
@@ -55,22 +53,12 @@ async function carregarEscalaFirebase() {
         
         console.log(`✅ ${snapshot.docs.length} registros de escala carregados`);
         
-        // Mostrar no console quais dias o funcionário trabalha
-        if (funcionarioAtual) {
-            const diasTrabalhados = [];
-            for (const [data, funcs] of Object.entries(escalaData)) {
-                if (funcs[funcionarioAtual.id] && funcs[funcionarioAtual.id].status === 'trabalha') {
-                    diasTrabalhados.push(data);
-                }
-            }
-            console.log(`📅 Funcionário trabalha em: ${diasTrabalhados.join(', ')}`);
-        }
-        
     } catch (error) {
         console.error("Erro ao carregar escala:", error);
     }
 }
 
+// ========== FUNÇÃO PARA CARREGAR PAGAMENTOS ==========
 async function carregarPagamentosFirebase() {
     try {
         if (!db) {
@@ -97,19 +85,7 @@ async function carregarPagamentosFirebase() {
     }
 }
 
-// Registrar Service Worker para PWA
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-                console.log('Service Worker registrado com sucesso:', registration);
-            })
-            .catch(error => {
-                console.log('Falha ao registrar Service Worker:', error);
-            });
-    });
-}
-
+// ========== FUNÇÃO PRINCIPAL ==========
 async function carregarDados() {
     const funcionarioStr = localStorage.getItem("funcionarioLogado");
     
@@ -118,103 +94,82 @@ async function carregarDados() {
         return;
     }
     
-    const funcionarioCache = JSON.parse(funcionarioStr);
-    
-    // Tentar carregar do Firebase primeiro
-    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-        try {
-            const doc = await db.collection('funcionarios').doc(funcionarioCache.id.toString()).get();
-            if (doc.exists) {
-                const funcAtualizado = doc.data();
-                if (!funcAtualizado.status) {
-                    alert("⚠️ Seu acesso foi desativado. Entre em contato com o administrador.");
-                    localStorage.removeItem("funcionarioLogado");
-                    window.location.href = "index.html";
-                    return;
-                }
-                funcionarioAtual = { id: parseInt(doc.id), ...funcAtualizado };
-                localStorage.setItem("funcionarioLogado", JSON.stringify(funcionarioAtual));
-            } else {
-                funcionarioAtual = funcionarioCache;
-            }
-        } catch (error) {
-            console.error("Erro ao carregar do Firebase:", error);
-            funcionarioAtual = funcionarioCache;
-        }
-    } else {
-        // Fallback para localStorage
-        const dadosEmpresa = localStorage.getItem("escala_funcionarios");
-        if (dadosEmpresa) {
-            const empresa = JSON.parse(dadosEmpresa);
-            const funcAtualizado = empresa.funcionarios.find(f => f.id === funcionarioCache.id);
-            funcionarioAtual = funcAtualizado || funcionarioCache;
-        } else {
-            funcionarioAtual = funcionarioCache;
-        }
+    try {
+        funcionarioAtual = JSON.parse(funcionarioStr);
+        console.log("👤 Funcionário logado:", funcionarioAtual.nome);
+        
+        // Carregar dados do Firebase
+        await carregarEscalaFirebase();
+        await carregarPagamentosFirebase();
+        
+        renderizarTela();
+        
+    } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+        document.getElementById("app").innerHTML = `
+            <div class="loading">
+                <p>❌ Erro ao carregar dados</p>
+                <button onclick="location.reload()">Tentar novamente</button>
+            </div>
+        `;
     }
-    
-    console.log("👤 Funcionário logado:", funcionarioAtual);
-    
-    // Carregar escala do Firebase (corrigido)
-    await carregarEscalaFirebase();
-    
-    renderizarTela();
 }
 
-// Renderizar tela principal
+// ========== RENDERIZAR TELA ==========
 function renderizarTela() {
     const app = document.getElementById("app");
     
-    // Calcular resumo do mês atual
     const resumo = calcularResumoMes();
     
     app.innerHTML = `
-        <div class="func-header">
-            <div class="func-nome">👋 Olá, ${funcionarioAtual.nome}</div>
-            <div class="func-diaria">💰 Diária: R$ ${funcionarioAtual.diaria.toFixed(2)}</div>
-        </div>
-        
-        // Dentro do resumo-card, substitua por:
-        <div class="resumo-card">
-            <div class="info-item">
-                <div class="info-valor">${resumo.diasTrabalhados}</div>
-                <div class="info-label">Dias Trabalhados</div>
-            </div>
-            <div class="info-item">
-                <div class="info-valor">${resumo.diasPagos}</div>
-                <div class="info-label">Dias Pagos</div>
-            </div>
-            <div class="info-item">
-                <div class="info-valor">${resumo.diasFolga}</div>
-                <div class="info-label">Dias de Folga</div>
-            </div>
-            <div class="info-item">
-                <div class="info-valor">R$ ${resumo.valorPago.toFixed(2)}</div>
-                <div class="info-label">Valor Recebido</div>
-            </div>
-        </div>
-        
-        <div class="calendario-card">
-            <div class="mes-navegacao">
-                <button class="nav-btn" onclick="mudarMes(-1)">◀</button>
-                <div class="mes-titulo" id="mesTitulo"></div>
-                <button class="nav-btn" onclick="mudarMes(1)">▶</button>
+        <div class="container">
+            <div class="func-header">
+                <div class="func-nome">👋 Olá, ${funcionarioAtual.nome}</div>
+                <div class="func-diaria">💰 Diária: R$ ${funcionarioAtual.diaria.toFixed(2)}</div>
             </div>
             
-            <div class="dias-semana">
-                <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+            <div class="resumo-card">
+                <div class="info-item">
+                    <div class="info-valor">${resumo.diasTrabalhados}</div>
+                    <div class="info-label">Dias Trabalhados</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-valor">${resumo.diasPagos || 0}</div>
+                    <div class="info-label">Dias Pagos</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-valor">${resumo.diasFolga}</div>
+                    <div class="info-label">Dias de Folga</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-valor">R$ ${(resumo.valorPago || 0).toFixed(2)}</div>
+                    <div class="info-label">Valor Recebido</div>
+                </div>
             </div>
             
-            <div class="calendario-grid" id="calendarioGrid"></div>
+            <div class="calendario-card">
+                <div class="mes-navegacao">
+                    <button class="nav-btn" onclick="mudarMes(-1)">◀</button>
+                    <div class="mes-titulo" id="mesTitulo"></div>
+                    <button class="nav-btn" onclick="mudarMes(1)">▶</button>
+                </div>
+                
+                <div class="dias-semana">
+                    <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+                </div>
+                
+                <div class="calendario-grid" id="calendarioGrid"></div>
+            </div>
+            
+            <button class="btn-sair" onclick="logout()">🚪 Sair</button>
         </div>
-        
-        <button class="btn-sair" onclick="logout()">🚪 Sair</button>
     `;
     
     atualizarTituloMes();
     renderizarCalendario();
 }
 
+// ========== CALCULAR RESUMO ==========
 function calcularResumoMes() {
     const diasNoMes = new Date(currentYear, currentMonth + 1, 0).getDate();
     let diasTrabalhados = 0;
@@ -234,21 +189,17 @@ function calcularResumoMes() {
         }
     }
     
-    const diasRestantes = diasNoMes - (diasTrabalhados + diasFolga);
-    const valorTotal = diasTrabalhados * funcionarioAtual.diaria;
     const valorPago = diasPagos * funcionarioAtual.diaria;
     
     return {
         diasTrabalhados,
         diasFolga,
-        diasRestantes,
-        valorTotal,
         diasPagos,
         valorPago
     };
 }
 
-// Atualizar título do mês
+// ========== ATUALIZAR TÍTULO ==========
 function atualizarTituloMes() {
     const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -258,6 +209,7 @@ function atualizarTituloMes() {
     }
 }
 
+// ========== RENDERIZAR CALENDÁRIO ==========
 function renderizarCalendario() {
     const grid = document.getElementById("calendarioGrid");
     if (!grid) return;
@@ -292,7 +244,6 @@ function renderizarCalendario() {
                 horario = escala.horario || '';
                 if (foiPago) {
                     pagoIcon = '💰';
-                    statusClass = 'dia-pago';
                 }
             } else if (escala.status === 'folga') {
                 statusClass = 'dia-folga';
@@ -315,6 +266,8 @@ function renderizarCalendario() {
     
     grid.innerHTML = gridHTML;
 }
+
+// ========== VER DETALHES ==========
 function verDetalhes(dataStr, diaNum) {
     const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
     const [ano, mes, dia] = dataStr.split('-');
@@ -334,27 +287,26 @@ function verDetalhes(dataStr, diaNum) {
         horario = escala.horario || 'Horário não definido';
         
         if (foiPago) {
-            pagamentoText = '✅ Pagamento Confirmado';
+            pagamentoText = 'Pagamento Confirmado';
             pagamentoIcon = '💰';
         } else {
-            pagamentoText = '⏳ Aguardando Pagamento';
+            pagamentoText = 'Aguardando Pagamento';
             pagamentoIcon = '⏳';
         }
     } else if (escala && escala.status === 'folga') {
         statusText = 'Dia de Folga';
         statusIcon = '❌';
         horario = 'Aproveite para descansar!';
-        pagamentoText = '📅 Não se aplica';
+        pagamentoText = 'Não se aplica';
         pagamentoIcon = '📅';
     } else {
         statusText = 'Não definido';
         statusIcon = '❓';
         horario = 'Aguardando definição do administrador';
-        pagamentoText = '⌛ Aguardando escala';
+        pagamentoText = 'Aguardando escala';
         pagamentoIcon = '⌛';
     }
     
-    // Criar modal
     let modal = document.getElementById("modalDetalhes");
     if (!modal) {
         modal = document.createElement('div');
@@ -388,7 +340,7 @@ function verDetalhes(dataStr, diaNum) {
     modal.style.display = 'flex';
 }
 
-// Mudar mês
+// ========== FUNÇÕES DE NAVEGAÇÃO ==========
 function mudarMes(delta) {
     currentMonth += delta;
     if (currentMonth < 0) {
@@ -403,24 +355,22 @@ function mudarMes(delta) {
     atualizarTituloMes();
     renderizarCalendario();
     
-    // Atualizar resumo
     const resumo = calcularResumoMes();
     const infoLabels = document.querySelectorAll('.info-valor');
     if (infoLabels.length >= 4) {
         infoLabels[0].textContent = resumo.diasTrabalhados;
-        infoLabels[1].textContent = resumo.diasFolga;
-        infoLabels[2].textContent = resumo.diasRestantes;
-        infoLabels[3].textContent = `R$ ${resumo.valorTotal.toFixed(2)}`;
+        infoLabels[1].textContent = resumo.diasPagos || 0;
+        infoLabels[2].textContent = resumo.diasFolga;
+        infoLabels[3].textContent = `R$ ${(resumo.valorPago || 0).toFixed(2)}`;
     }
 }
 
-// Logout
 function logout() {
     localStorage.removeItem("funcionarioLogado");
     window.location.href = "index.html";
 }
 
-// Fechar modal ao clicar fora
+// Fechar modal
 window.onclick = function(event) {
     const modal = document.getElementById("modalDetalhes");
     if (event.target === modal) {
