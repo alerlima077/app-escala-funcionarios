@@ -34,25 +34,28 @@ if ('serviceWorker' in navigator) {
 
 // ========== FUNÇÕES PRINCIPAIS ==========
 
-// ========== FUNÇÕES DO FIREBASE ==========
 
 async function carregarDados() {
     try {
-        console.log("🔄 Carregando dados do Firebase...");
-        const snapshot = await db.collection('funcionarios').orderBy('id').get();
-        funcionarios = [];
-        snapshot.forEach(doc => {
-            funcionarios.push({ id: parseInt(doc.id), ...doc.data() });
-        });
-        console.log(`✅ ${funcionarios.length} funcionários carregados do Firebase`);
+        console.log("🔄 Carregando dados...");
         
-        // NÃO cria dados automáticos! Mantém vazio.
+        // Tenta carregar do Firebase primeiro
+        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+            const snapshot = await db.collection('funcionarios').orderBy('id').get();
+            funcionarios = [];
+            snapshot.forEach(doc => {
+                funcionarios.push({ id: parseInt(doc.id), ...doc.data() });
+            });
+            console.log(`✅ ${funcionarios.length} funcionários carregados do Firebase`);
+        }
+        
+        // Se não tem funcionários, NÃO CRIA AUTOMATICAMENTE
+        // Mantém vazio para o admin cadastrar manualmente
         
         carregarEscala();
         renderizarLista();
     } catch (error) {
-        console.error("❌ Erro ao carregar do Firebase:", error);
-        // Não criar dados automáticos no fallback também
+        console.error("❌ Erro ao carregar:", error);
         funcionarios = [];
         carregarEscala();
         renderizarLista();
@@ -111,6 +114,7 @@ function carregarEscala() {
 }
 
 function salvarEscalaGeral() {
+    // Salvar apenas escala, não funcionários
     localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
     alert("✅ Escala salva com sucesso!");
 }
@@ -157,13 +161,19 @@ function editarFuncionario(id) {
     }
 }
 
-function excluirFuncionario(id) {
+async function excluirFuncionario(id) {
     if (confirm("Tem certeza?")) {
-        funcionarios = funcionarios.filter(f => f.id !== id);
-        salvarDados();
-        renderizarLista();
-        if (document.getElementById("tab-escala").style.display !== "none") {
-            carregarSemana();
+        // Usar Firebase ou localStorage?
+        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+            await excluirFuncionarioFirebase(id);
+        } else {
+            // Fallback para localStorage
+            funcionarios = funcionarios.filter(f => f.id !== id);
+            salvarDadosLocal();
+            renderizarLista();
+            if (document.getElementById("tab-escala").style.display !== "none") {
+                carregarSemana();
+            }
         }
     }
 }
@@ -730,7 +740,7 @@ function logout() {
 
 // ========== FORMULÁRIO ==========
 
-document.getElementById("formFuncionario").onsubmit = function(e) {
+document.getElementById("formFuncionario").onsubmit = async function(e) {
     e.preventDefault();
     
     const id = document.getElementById("funcionarioId").value;
@@ -744,18 +754,27 @@ document.getElementById("formFuncionario").onsubmit = function(e) {
         return;
     }
     
-    if (id) {
-        const index = funcionarios.findIndex(f => f.id == id);
-        if (index !== -1) {
-            funcionarios[index] = { ...funcionarios[index], nome, senha, diaria, status };
-        }
+    const funcionario = { id: id ? parseInt(id) : null, nome, senha, diaria, status };
+    
+    // Usar Firebase ou localStorage?
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        await salvarFuncionario(funcionario);
     } else {
-        const novoId = funcionarios.length > 0 ? Math.max(...funcionarios.map(f => f.id)) + 1 : 1;
-        funcionarios.push({ id: novoId, nome, senha, diaria, status });
+        // Fallback para localStorage
+        if (id) {
+            const index = funcionarios.findIndex(f => f.id == id);
+            if (index !== -1) {
+                funcionarios[index] = funcionario;
+            }
+        } else {
+            const novoId = funcionarios.length > 0 ? Math.max(...funcionarios.map(f => f.id)) + 1 : 1;
+            funcionario.id = novoId;
+            funcionarios.push(funcionario);
+        }
+        salvarDadosLocal();
+        renderizarLista();
     }
     
-    salvarDados();
-    renderizarLista();
     fecharModal();
     
     if (document.getElementById("tab-escala").style.display !== "none") {
@@ -763,26 +782,19 @@ document.getElementById("formFuncionario").onsubmit = function(e) {
     }
 };
 
-// ========== INICIALIZAÇÃO ==========
+/// ========== INICIALIZAÇÃO ==========
+
+// Forçar limpeza do localStorage na inicialização
+localStorage.removeItem("escala_funcionarios");
+localStorage.removeItem("escala_funcionarios_pagamentos");
+
+console.log("🗑️ localStorage limpo na inicialização");
 
 // Função de inicialização principal
 async function inicializarSistema() {
     console.log("🚀 Inicializando sistema...");
     
-    // Verificar se Firebase está disponível
-    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-        console.log("🔥 Firebase conectado, carregando dados do banco...");
-        await carregarDados(); // Versão Firebase
-    } else {
-        console.log("⚠️ Firebase não disponível, usando localStorage...");
-        // Versão fallback para localStorage
-        const dados = localStorage.getItem("escala_funcionarios");
-        if (dados) {
-            const parsed = JSON.parse(dados);
-            funcionarios = parsed.funcionarios || [];
-        }
-        renderizarLista();
-    }
+    await carregarDados();
     
     // Carregar dados de pagamento
     carregarPagamentosStorage();
