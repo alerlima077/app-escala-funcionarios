@@ -435,6 +435,153 @@
             display: inline-block;
         }
 
+        /* ========== CORREÇÃO DA TABELA DE PAGAMENTOS ========== */
+
+        /* Container com scroll horizontal */
+        .pagamentos-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-top: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background: white;
+        }
+
+        /* Tabela de pagamentos */
+        .pagamentos-table {
+            min-width: 800px;
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .pagamentos-table th {
+            background: #0f172a;
+            color: white;
+            padding: 10px 6px;
+            text-align: center;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        .pagamentos-table td {
+            padding: 8px 4px;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
+        }
+
+        /* Coluna do funcionário fixa */
+        .pagamentos-table .funcionario-col {
+            background: #f8fafc;
+            font-weight: 600;
+            position: sticky;
+            left: 0;
+            min-width: 120px;
+            text-align: left;
+            padding: 8px 12px;
+        }
+
+        /* Botões dentro da tabela */
+        .pagamentos-table .btn-pagar {
+            background: #f59e0b;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .pagamentos-table .btn-pagar:hover {
+            background: #d97706;
+        }
+
+        .pagamentos-table .pago-badge {
+            background: #16a34a;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            display: inline-block;
+        }
+
+        .pagamentos-table .desfazer-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 10px;
+            margin-top: 4px;
+            white-space: nowrap;
+        }
+
+        /* Células de dia */
+        .pagamentos-table .dia-pago {
+            background: #dcfce7;
+        }
+
+        .pagamentos-table .dia-nao-pago {
+            background: #fff;
+        }
+
+        /* Resumo de pagamento */
+        .resumo-pagamento {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .resumo-pagamento h4 {
+            margin-bottom: 10px;
+            color: #0f172a;
+        }
+
+        .resumo-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .resumo-total {
+            font-weight: bold;
+            color: #0f172a;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 2px solid #cbd5e1;
+        }
+
+        /* Responsivo */
+        @media (max-width: 768px) {
+            .pagamentos-table {
+                font-size: 10px;
+            }
+            
+            .pagamentos-table .funcionario-col {
+                min-width: 100px;
+            }
+            
+            .pagamentos-table th,
+            .pagamentos-table td {
+                padding: 6px 3px;
+            }
+            
+            .pagamentos-table .btn-pagar {
+                padding: 4px 6px;
+                font-size: 9px;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -517,7 +664,7 @@
                     </button>
                 </div>
                 
-                <div id="pagamentosContainer" style="overflow-x: auto;">
+                <div id="pagamentosContainer" class="pagamentos-container">
                     <div class="loading">Selecione um mês para visualizar</div>
                 </div>
             </div>
