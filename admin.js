@@ -533,11 +533,15 @@ let mesSelecionado = null;
 
 // Carregar pagamentos do localStorage
 function carregarPagamentosStorage() {
+    // Tentar carregar do Firebase primeiro
+    if (db) {
+        carregarPagamentosFirebase();
+    }
+    
+    // Fallback para localStorage
     const pagamentosSalvos = localStorage.getItem("escala_funcionarios_pagamentos");
-    if (pagamentosSalvos) {
+    if (pagamentosSalvos && Object.keys(pagamentosData).length === 0) {
         pagamentosData = JSON.parse(pagamentosSalvos);
-    } else {
-        pagamentosData = {};
     }
 }
 
@@ -576,19 +580,22 @@ async function salvarPagamentosFirebase() {
         
         const batch = db.batch();
         
+        // Limpar documentos antigos da coleção
         const snapshot = await db.collection('pagamentos').get();
         snapshot.forEach(doc => {
             batch.delete(doc.ref);
         });
         
+        // Adicionar os pagamentos atuais
         for (const [data, funcionarios] of Object.entries(pagamentosData)) {
             for (const [funcId, pago] of Object.entries(funcionarios)) {
                 if (pago === true) {
-                    const docRef = db.collection('pagamentos').doc();
+                    const docRef = db.collection('pagamentos').doc(`${data}_${funcId}`);
                     batch.set(docRef, {
                         data: data,
                         funcionario_id: parseInt(funcId),
-                        pago: true
+                        pago: true,
+                        atualizado_em: new Date()
                     });
                 }
             }
@@ -596,6 +603,8 @@ async function salvarPagamentosFirebase() {
         
         await batch.commit();
         console.log("✅ Pagamentos salvos no Firebase");
+        
+        // Backup local
         localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
         
         return true;
@@ -605,21 +614,21 @@ async function salvarPagamentosFirebase() {
     }
 }
 
+
 // Carregar tela de pagamentos
-function carregarPagamentos() {
+async function carregarPagamentos() {
     const mesInput = document.getElementById("mesPagamento");
     if (!mesInput.value) {
         const hoje = new Date();
-        const ano = hoje.getFullYear();
-        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-        mesInput.value = `${ano}-${mes}`;
+        mesInput.value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
     }
     
     mesSelecionado = mesInput.value;
     const [ano, mes] = mesSelecionado.split('-');
     const diasNoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
     
-    carregarPagamentosStorage();
+    // Carregar do Firebase primeiro
+    await carregarPagamentosFirebase();
     
     const funcionariosAtivos = funcionarios.filter(f => f.status === true);
     const container = document.getElementById("pagamentosContainer");
@@ -627,7 +636,6 @@ function carregarPagamentos() {
     // Gerar cabeçalho dos dias
     let diasHTML = '';
     for (let dia = 1; dia <= diasNoMes; dia++) {
-        const dataStr = `${ano}-${mes}-${String(dia).padStart(2, '0')}`;
         const diaSemana = new Date(parseInt(ano), parseInt(mes)-1, dia).toLocaleDateString('pt-BR', { weekday: 'short' });
         diasHTML += `<th>${diaSemana}<br>${dia}</th>`;
     }
@@ -652,33 +660,28 @@ function carregarPagamentos() {
                 diasTrabalhados++;
             }
             
-            // Verificar se o dia foi pago
+            // Verificar se o dia foi pago (usando pagamentosData atualizado)
             const pago = pagamentosData[dataStr] && pagamentosData[dataStr][func.id] === true;
             if (pago) diasPagos++;
             
-            const statusPagamento = pago ? 'Pago' : 'Pendente';
-            const bgClass = pago ? 'dia-pago' : 'dia-nao-pago';
-            
             funcionarioDiasHTML += `
-                <td class="${bgClass}">
-                    ${trabalhou ? `
-                        ${pago ? 
-                            `<div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
-                                <span style="background: #16a34a; color: white; padding: 4px 8px; border-radius: 20px; font-size: 11px; font-weight: bold;">
-                                    ✅ PAGO
-                                </span>
-                                <button onclick="desfazerPagamento('${dataStr}', ${func.id})" 
-                                    style="background: #dc2626; color: white; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold;">
-                                    ↺ DESFAZER
-                                </button>
-                            </div>` : 
-                            `<button onclick="marcarDiaPago('${dataStr}', ${func.id})" 
-                                style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold; width: 100%;">
-                                💰 PAGAR
-                            </button>`
-                        }
-                    ` : '-'}
-                </td>
+                <td class="${pago ? 'dia-pago' : 'dia-nao-pago'}">
+                    ${trabalhou ? (pago ? 
+                        `<div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+                            <span style="background: #16a34a; color: white; padding: 4px 8px; border-radius: 20px; font-size: 11px; font-weight: bold;">
+                                ✅ PAGO
+                            </span>
+                            <button onclick="desfazerPagamento('${dataStr}', ${func.id})" 
+                                style="background: #dc2626; color: white; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                                ↺ DESFAZER
+                            </button>
+                        </div>` : 
+                        `<button onclick="marcarDiaPago('${dataStr}', ${func.id})" 
+                            style="background: #f59e0b; color: white; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold; width: 100%;">
+                            💰 PAGAR
+                        </button>`
+                    ) : '-'}
+                </table>
             `;
         }
         
@@ -735,25 +738,26 @@ function carregarPagamentos() {
         <div style="overflow-x: auto;">
             <table class="pagamentos-table">
                 <thead>
-                    <tr>
-                        <th style="min-width: 120px;">Funcionário</th>
-                        ${diasHTML}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${funcionariosHTML}
-                </tbody>
+                    <tr><th style="min-width: 120px;">Funcionário</th>${diasHTML}</thead>
+                <tbody>${funcionariosHTML}</tbody>
             </table>
         </div>
     `;
 }
-
 // Marcar um dia específico como pago
 async function marcarDiaPago(dataStr, funcId) {
     if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
     pagamentosData[dataStr][funcId] = true;
+    
+    // Salvar no Firebase
     await salvarPagamentosFirebase();
+    
+    // Também salvar no localStorage como backup
+    localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
+    
+    // Recarregar a tela para mostrar atualizado
     carregarPagamentos();
+    
     console.log(`✅ Pagamento registrado: Funcionário ${funcId} em ${dataStr}`);
 }
 
@@ -800,7 +804,13 @@ async function desfazerPagamento(dataStr, funcId) {
             if (Object.keys(pagamentosData[dataStr]).length === 0) {
                 delete pagamentosData[dataStr];
             }
+            
+            // Salvar no Firebase
             await salvarPagamentosFirebase();
+            
+            // Atualizar localStorage
+            localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
+            
             carregarPagamentos();
             console.log(`↺ Pagamento desfeito: Funcionário ${funcId} em ${dataStr}`);
         }
