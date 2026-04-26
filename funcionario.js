@@ -71,6 +71,32 @@ async function carregarEscalaFirebase() {
     }
 }
 
+async function carregarPagamentosFirebase() {
+    try {
+        if (!db) {
+            console.log("⚠️ Firebase não disponível para pagamentos");
+            return;
+        }
+        
+        const snapshot = await db.collection('pagamentos').get();
+        pagamentosData = {};
+        
+        snapshot.forEach(doc => {
+            const item = doc.data();
+            const data = item.data;
+            const funcId = item.funcionario_id;
+            
+            if (!pagamentosData[data]) pagamentosData[data] = {};
+            pagamentosData[data][funcId] = item.pago;
+        });
+        
+        console.log(`✅ ${snapshot.docs.length} registros de pagamentos carregados`);
+        
+    } catch (error) {
+        console.error("Erro ao carregar pagamentos:", error);
+    }
+}
+
 // Registrar Service Worker para PWA
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -148,22 +174,23 @@ function renderizarTela() {
             <div class="func-diaria">💰 Diária: R$ ${funcionarioAtual.diaria.toFixed(2)}</div>
         </div>
         
+        // Dentro do resumo-card, substitua por:
         <div class="resumo-card">
             <div class="info-item">
                 <div class="info-valor">${resumo.diasTrabalhados}</div>
                 <div class="info-label">Dias Trabalhados</div>
             </div>
             <div class="info-item">
+                <div class="info-valor">${resumo.diasPagos}</div>
+                <div class="info-label">Dias Pagos</div>
+            </div>
+            <div class="info-item">
                 <div class="info-valor">${resumo.diasFolga}</div>
                 <div class="info-label">Dias de Folga</div>
             </div>
             <div class="info-item">
-                <div class="info-valor">${resumo.diasRestantes}</div>
-                <div class="info-label">Dias Restantes</div>
-            </div>
-            <div class="info-item">
-                <div class="info-valor">R$ ${resumo.valorTotal.toFixed(2)}</div>
-                <div class="info-label">A Receber no Mês</div>
+                <div class="info-valor">R$ ${resumo.valorPago.toFixed(2)}</div>
+                <div class="info-label">Valor Recebido</div>
             </div>
         </div>
         
@@ -188,11 +215,11 @@ function renderizarTela() {
     renderizarCalendario();
 }
 
-// Calcular resumo do mês
 function calcularResumoMes() {
     const diasNoMes = new Date(currentYear, currentMonth + 1, 0).getDate();
     let diasTrabalhados = 0;
     let diasFolga = 0;
+    let diasPagos = 0;
     
     for (let dia = 1; dia <= diasNoMes; dia++) {
         const dataStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
@@ -200,6 +227,8 @@ function calcularResumoMes() {
         
         if (escala && escala.status === 'trabalha') {
             diasTrabalhados++;
+            const foiPago = pagamentosData[dataStr] && pagamentosData[dataStr][funcionarioAtual.id] === true;
+            if (foiPago) diasPagos++;
         } else if (escala && escala.status === 'folga') {
             diasFolga++;
         }
@@ -207,12 +236,15 @@ function calcularResumoMes() {
     
     const diasRestantes = diasNoMes - (diasTrabalhados + diasFolga);
     const valorTotal = diasTrabalhados * funcionarioAtual.diaria;
+    const valorPago = diasPagos * funcionarioAtual.diaria;
     
     return {
         diasTrabalhados,
         diasFolga,
         diasRestantes,
-        valorTotal
+        valorTotal,
+        diasPagos,
+        valorPago
     };
 }
 
@@ -230,8 +262,6 @@ function renderizarCalendario() {
     const grid = document.getElementById("calendarioGrid");
     if (!grid) return;
     
-    console.log("📅 Renderizando calendário com escalaData:", escalaData);
-    
     const primeiroDia = new Date(currentYear, currentMonth, 1);
     const primeiroDiaSemana = primeiroDia.getDay();
     const diasNoMes = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -239,7 +269,6 @@ function renderizarCalendario() {
     let gridHTML = '';
     
     // Dias do mês anterior
-    const diasMesAnterior = new Date(currentYear, currentMonth, 0).getDate();
     for (let i = primeiroDiaSemana - 1; i >= 0; i--) {
         gridHTML += `<div class="dia dia-vazio"></div>`;
     }
@@ -248,17 +277,23 @@ function renderizarCalendario() {
     for (let dia = 1; dia <= diasNoMes; dia++) {
         const dataStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
         
-        // Buscar escala para este dia
         let statusClass = '';
         let statusIcon = '';
         let horario = '';
+        let pagoIcon = '';
         
-        if (escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id]) {
-            const escala = escalaData[dataStr][funcionarioAtual.id];
+        const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
+        const foiPago = pagamentosData[dataStr] && pagamentosData[dataStr][funcionarioAtual.id] === true;
+        
+        if (escala) {
             if (escala.status === 'trabalha') {
                 statusClass = 'dia-trabalha';
                 statusIcon = '✅';
                 horario = escala.horario || '';
+                if (foiPago) {
+                    pagoIcon = '💰';
+                    statusClass = 'dia-pago';
+                }
             } else if (escala.status === 'folga') {
                 statusClass = 'dia-folga';
                 statusIcon = '❌';
@@ -272,7 +307,7 @@ function renderizarCalendario() {
         gridHTML += `
             <div class="dia ${statusClass}" onclick="verDetalhes('${dataStr}', ${dia})">
                 <div class="dia-numero">${dia}${isHoje ? '📍' : ''}</div>
-                <div class="dia-indicador">${statusIcon}</div>
+                <div class="dia-indicador">${statusIcon} ${pagoIcon}</div>
                 ${horario ? `<div class="dia-indicador" style="font-size: 0.6rem;">${horario.substring(0, 8)}</div>` : ''}
             </div>
         `;
@@ -280,20 +315,12 @@ function renderizarCalendario() {
     
     grid.innerHTML = gridHTML;
 }
-
 function verDetalhes(dataStr, diaNum) {
     const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
     const [ano, mes, dia] = dataStr.split('-');
     const dataFormatada = `${dia}/${mes}/${ano}`;
     
-    // Verificar pagamento
-    const pagamentosSalvos = localStorage.getItem("escala_funcionarios_pagamentos");
-    let pagamentosData = {};
-    let foiPago = false;
-    if (pagamentosSalvos) {
-        pagamentosData = JSON.parse(pagamentosSalvos);
-        foiPago = pagamentosData[dataStr] && pagamentosData[dataStr][funcionarioAtual.id] === true;
-    }
+    const foiPago = pagamentosData[dataStr] && pagamentosData[dataStr][funcionarioAtual.id] === true;
     
     let statusText = '';
     let statusIcon = '';
@@ -304,26 +331,26 @@ function verDetalhes(dataStr, diaNum) {
     if (escala && escala.status === 'trabalha') {
         statusText = 'Dia de Trabalho';
         statusIcon = '✅';
-        horario = escala.horario || 'Horário não definido pelo administrador';
+        horario = escala.horario || 'Horário não definido';
         
         if (foiPago) {
-            pagamentoText = 'Pagamento Confirmado';
+            pagamentoText = '✅ Pagamento Confirmado';
             pagamentoIcon = '💰';
         } else {
-            pagamentoText = 'Aguardando Pagamento';
+            pagamentoText = '⏳ Aguardando Pagamento';
             pagamentoIcon = '⏳';
         }
     } else if (escala && escala.status === 'folga') {
         statusText = 'Dia de Folga';
         statusIcon = '❌';
         horario = 'Aproveite para descansar!';
-        pagamentoText = 'Não se aplica';
+        pagamentoText = '📅 Não se aplica';
         pagamentoIcon = '📅';
     } else {
         statusText = 'Não definido';
         statusIcon = '❓';
         horario = 'Aguardando definição do administrador';
-        pagamentoText = 'Aguardando escala';
+        pagamentoText = '⌛ Aguardando escala';
         pagamentoIcon = '⌛';
     }
     
