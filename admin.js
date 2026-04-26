@@ -1009,30 +1009,24 @@ async function inicializarSistema() {
 // Inicializar o sistema
 inicializarSistema();
 
-// ========== FUNÇÃO SALVAR ESCALA DA SEMANA ==========
-window.salvarEscalaSemana = async function() {
-    console.log("💾 Salvando escala da semana...");
+// ========== SALVAR ESCALA DA SEMANA ==========
+window.salvarEscalaSemana = function() {
+    console.log("💾 Salvar escala da semana chamado");
     
-    try {
-        // Salvar no Firebase se disponível
-        if (typeof db !== 'undefined' && db) {
-            await salvarEscalaFirebase();
-            console.log("✅ Salvo no Firebase");
-        }
-        
-        // Salvar no localStorage como backup
-        localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
-        
-        alert("✅ Escala da semana salva com sucesso!");
-        
-        // Recarregar a tabela
-        if (typeof carregarSemana === 'function') {
-            carregarSemana();
-        }
-        
-    } catch (error) {
-        console.error("Erro ao salvar escala:", error);
-        alert("❌ Erro ao salvar escala. Tente novamente.");
+    // Salvar no localStorage
+    localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
+    
+    // Salvar no Firebase se disponível
+    if (typeof db !== 'undefined' && db) {
+        // Salvar assincronamente sem travar o clique
+        salvarEscalaFirebase().catch(console.error);
+    }
+    
+    alert("✅ Escala da semana salva com sucesso!");
+    
+    // Recarregar a tabela
+    if (typeof carregarSemana === 'function') {
+        carregarSemana();
     }
 };
 
