@@ -8,25 +8,64 @@ let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth();
 let diasDoMes = [];
 
+// ========== CONFIGURAÇÃO DO FIREBASE ==========
+const firebaseConfig = {
+  apiKey: "AIzaSyApDJcJ-bsiPJJLITXdlRtf82gzlSYtZRY",
+  authDomain: "app-escala-funcionarios.firebaseapp.com",
+  projectId: "app-escala-funcionarios",
+  storageBucket: "app-escala-funcionarios.firebasestorage.app",
+  messagingSenderId: "1066676645204",
+  appId: "1:1066676645204:web:3ce459ed8b8b76a7f92cc1"
+};
+
+let db = null;
+if (typeof firebase !== 'undefined') {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.firestore();
+    console.log("✅ Firebase conectado no funcionario.js");
+}
+
 async function carregarEscalaFirebase() {
     try {
-        if (typeof db !== 'undefined' && db) {
-            const snapshot = await db.collection('escala').get();
-            escalaData = {};
-            
-            snapshot.forEach(doc => {
-                const item = doc.data();
-                const data = item.data;
-                const funcId = item.funcionario_id;
-                
-                if (!escalaData[data]) escalaData[data] = {};
-                escalaData[data][funcId] = {
-                    status: item.status,
-                    horario: item.horario || ''
-                };
-            });
-            console.log(`✅ ${snapshot.docs.length} registros de escala carregados`);
+        if (!db) {
+            console.log("⚠️ Firebase não disponível, usando localStorage");
+            const escalaSalva = localStorage.getItem("escala_funcionarios_escala");
+            if (escalaSalva) {
+                escalaData = JSON.parse(escalaSalva);
+            }
+            return;
         }
+        
+        const snapshot = await db.collection('escala').get();
+        escalaData = {};
+        
+        snapshot.forEach(doc => {
+            const item = doc.data();
+            const data = item.data;
+            const funcId = item.funcionario_id;
+            
+            if (!escalaData[data]) escalaData[data] = {};
+            escalaData[data][funcId] = {
+                status: item.status,
+                horario: item.horario || ''
+            };
+        });
+        
+        console.log(`✅ ${snapshot.docs.length} registros de escala carregados`);
+        
+        // Mostrar no console quais dias o funcionário trabalha
+        if (funcionarioAtual) {
+            const diasTrabalhados = [];
+            for (const [data, funcs] of Object.entries(escalaData)) {
+                if (funcs[funcionarioAtual.id] && funcs[funcionarioAtual.id].status === 'trabalha') {
+                    diasTrabalhados.push(data);
+                }
+            }
+            console.log(`📅 Funcionário trabalha em: ${diasTrabalhados.join(', ')}`);
+        }
+        
     } catch (error) {
         console.error("Erro ao carregar escala:", error);
     }
@@ -90,11 +129,8 @@ async function carregarDados() {
     
     console.log("👤 Funcionário logado:", funcionarioAtual);
     
-    // Carregar escala (também do Firebase depois)
-    const escalaSalva = localStorage.getItem("escala_funcionarios_escala");
-    if (escalaSalva) {
-        escalaData = JSON.parse(escalaSalva);
-    }
+    // Carregar escala do Firebase (corrigido)
+    await carregarEscalaFirebase();
     
     renderizarTela();
 }
@@ -194,12 +230,7 @@ function renderizarCalendario() {
     const grid = document.getElementById("calendarioGrid");
     if (!grid) return;
     
-    // Carregar dados de pagamento
-    const pagamentosSalvos = localStorage.getItem("escala_funcionarios_pagamentos");
-    let pagamentosData = {};
-    if (pagamentosSalvos) {
-        pagamentosData = JSON.parse(pagamentosSalvos);
-    }
+    console.log("📅 Renderizando calendário com escalaData:", escalaData);
     
     const primeiroDia = new Date(currentYear, currentMonth, 1);
     const primeiroDiaSemana = primeiroDia.getDay();
@@ -216,26 +247,18 @@ function renderizarCalendario() {
     // Dias do mês atual
     for (let dia = 1; dia <= diasNoMes; dia++) {
         const dataStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-        const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
         
-        // Verificar se o dia foi pago
-        const foiPago = pagamentosData[dataStr] && pagamentosData[dataStr][funcionarioAtual.id] === true;
-        
+        // Buscar escala para este dia
         let statusClass = '';
         let statusIcon = '';
         let horario = '';
-        let pagoIcon = '';
         
-        if (escala) {
+        if (escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id]) {
+            const escala = escalaData[dataStr][funcionarioAtual.id];
             if (escala.status === 'trabalha') {
                 statusClass = 'dia-trabalha';
                 statusIcon = '✅';
                 horario = escala.horario || '';
-                // Adicionar indicador de pagamento
-                if (foiPago) {
-                    statusClass = 'dia-pago';
-                    pagoIcon = '💰';
-                }
             } else if (escala.status === 'folga') {
                 statusClass = 'dia-folga';
                 statusIcon = '❌';
@@ -249,8 +272,7 @@ function renderizarCalendario() {
         gridHTML += `
             <div class="dia ${statusClass}" onclick="verDetalhes('${dataStr}', ${dia})">
                 <div class="dia-numero">${dia}${isHoje ? '📍' : ''}</div>
-                ${statusIcon ? `<div class="dia-indicador">${statusIcon}</div>` : ''}
-                ${pagoIcon ? `<div class="dia-indicador" style="font-size: 10px;">${pagoIcon}</div>` : ''}
+                <div class="dia-indicador">${statusIcon}</div>
                 ${horario ? `<div class="dia-indicador" style="font-size: 0.6rem;">${horario.substring(0, 8)}</div>` : ''}
             </div>
         `;

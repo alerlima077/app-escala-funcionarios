@@ -1,4 +1,5 @@
-const CACHE_VERSION = 'v2';
+// sw.js - Service Worker para PWA (CORRIGIDO)
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
@@ -23,6 +24,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then(cache => cache.addAll(APP_SHELL))
+      .catch(err => console.log('Erro ao adicionar ao cache:', err))
   );
 });
 
@@ -45,7 +47,7 @@ self.addEventListener('activate', event => {
   );
 });
 
-// ================= FETCH =================
+// ================= FETCH (CORRIGIDO) =================
 self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
@@ -53,20 +55,21 @@ self.addEventListener('fetch', event => {
   // ❗ NÃO INTERCEPTAR FIREBASE
   if (
     url.origin.includes('firebase') ||
-    url.origin.includes('googleapis')
+    url.origin.includes('googleapis') ||
+    url.pathname.includes('firestore')
   ) {
     return;
   }
 
   // ================= HTML (Network First) =================
-  if (req.headers.get('accept').includes('text/html')) {
+  if (req.headers.get('accept') && req.headers.get('accept').includes('text/html')) {
     event.respondWith(
       fetch(req)
         .then(res => {
           return caches.open(DYNAMIC_CACHE).then(cache => {
             cache.put(req, res.clone());
             return res;
-          });
+          }).catch(() => res);
         })
         .catch(() => caches.match(req))
     );
@@ -81,27 +84,29 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       caches.match(req).then(cacheRes => {
         const fetchPromise = fetch(req).then(networkRes => {
-          caches.open(STATIC_CACHE).then(cache => {
-            cache.put(req, networkRes.clone());
-          });
+          if (networkRes && networkRes.ok) {
+            caches.open(STATIC_CACHE).then(cache => {
+              cache.put(req, networkRes.clone());
+            });
+          }
           return networkRes;
-        });
-
+        }).catch(() => cacheRes);
+        
         return cacheRes || fetchPromise;
       })
     );
     return;
   }
 
-  // ================= OUTROS (Cache First simples) =================
+  // ================= OUTROS (Cache First) =================
   event.respondWith(
     caches.match(req).then(res => {
       return res || fetch(req).then(networkRes => {
         return caches.open(DYNAMIC_CACHE).then(cache => {
           cache.put(req, networkRes.clone());
           return networkRes;
-        });
-      });
+        }).catch(() => networkRes);
+      }).catch(() => new Response('Offline', { status: 503 }));
     })
   );
 });
