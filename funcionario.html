@@ -127,6 +127,7 @@
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             gap: 6px;
+            margin-bottom: 20px;
         }
         
         .dia {
@@ -142,6 +143,7 @@
             cursor: pointer;
             transition: all 0.2s;
             padding: 4px;
+            min-width: 0;
         }
         
         .dia:hover {
@@ -163,16 +165,32 @@
         .dia-vazio {
             background: transparent;
             cursor: default;
+            visibility: hidden;
         }
         
         .dia-numero {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: bold;
         }
         
         .dia-indicador {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             margin-top: 2px;
+        }
+        
+        /* Botão sair */
+        .btn-sair {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            width: 100%;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-bottom: 20px;
         }
         
         /* Modal de detalhes */
@@ -218,6 +236,13 @@
             font-size: 0.9rem;
         }
         
+        .modal-pagamento {
+            margin: 16px 0;
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
         .close-modal {
             background: #0f172a;
             color: white;
@@ -228,32 +253,17 @@
             width: 100%;
         }
         
-        /* Botão sair */
-        .btn-sair {
-            background: #ef4444;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 12px;
-            width: 100%;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-        
-        /* Loading */
         .loading {
             text-align: center;
             padding: 40px;
             color: #64748b;
         }
         
-        /* Mensagem sem dados */
-        .sem-dados {
-            text-align: center;
-            padding: 20px;
-            color: #64748b;
+        /* Status de pagamento no calendário */
+        .dia-pago {
+            background: #dcfce7;
+            border: 2px solid #16a34a;
+            position: relative;
         }
         
         @media (max-width: 480px) {
@@ -268,42 +278,15 @@
             .dia {
                 font-size: 0.7rem;
             }
+            
+            .dia-numero {
+                font-size: 0.75rem;
+            }
+            
+            .calendario-grid {
+                gap: 4px;
+            }
         }
-
-        /* Status de pagamento no calendário */
-        .dia-pago {
-            background: #dcfce7;
-            border: 2px solid #16a34a;
-            position: relative;
-        }
-
-        .dia-pago::after {
-            content: "💰";
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            font-size: 8px;
-        }
-
-        .status-pago {
-            background: #16a34a;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 20px;
-            font-size: 11px;
-            display: inline-block;
-        }
-
-        .status-nao-pago {
-            background: #fef3c7;
-            color: #92400e;
-            padding: 4px 8px;
-            border-radius: 20px;
-            font-size: 11px;
-            display: inline-block;
-        }
-
-
     </style>
 </head>
 <body>
