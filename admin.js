@@ -128,6 +128,31 @@ async function salvarEscalaGeral() {
     alert("✅ Escala salva com sucesso!");
 }
 
+// ========== FUNÇÃO PARA SALVAR ESCALA DA SEMANA ==========
+async function salvarEscalaSemana() {
+    console.log("💾 Salvando escala da semana...");
+    
+    try {
+        // Salvar no Firebase se disponível
+        if (typeof db !== 'undefined' && db) {
+            await salvarEscalaFirebase();
+            console.log("✅ Salvo no Firebase");
+        }
+        
+        // Salvar no localStorage como backup
+        localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
+        
+        alert("✅ Escala da semana salva com sucesso!");
+        
+        // Recarregar a tabela para mostrar os dados salvos
+        carregarSemana();
+        
+    } catch (error) {
+        console.error("Erro ao salvar escala:", error);
+        alert("❌ Erro ao salvar escala. Tente novamente.");
+    }
+}
+
 // ========== FUNÇÕES DE ESCALA NO FIREBASE ==========
 
 async function carregarEscalaFirebase() {
