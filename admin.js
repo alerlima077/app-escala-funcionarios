@@ -349,6 +349,9 @@ function renderizarTabelaEscala() {
                     const status = escala ? escala.status : '';
                     const horario = escala && escala.horario ? escala.horario : '';
                     
+                    // Determinar se o select de horário deve estar habilitado
+                    const horarioDisabled = status !== 'trabalha';
+                    
                     return `
                         <td style="min-width: 140px; padding: 8px; vertical-align: top;">
                             <select class="status-select" data-data="${dia.data}" data-func="${func.id}" onchange="atualizarStatus(this)" 
@@ -359,19 +362,17 @@ function renderizarTabelaEscala() {
                                 <option value="excluir">🗑️ Excluir</option>
                             </select>
                             
-                            <!-- NOVO SELECT DE HORÁRIO -->
                             <select class="horario-select" data-data="${dia.data}" data-func="${func.id}" onchange="atualizarHorarioSelect(this)" 
                                     style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 12px; text-align: center;"
-                                    ${status !== 'trabalha' ? 'disabled' : ''}>
+                                    ${horarioDisabled ? 'disabled' : ''}>
                                 <option value="">-- Selecione o horário --</option>
                                 <option value="07:00 às 15:20" ${horario === '07:00 às 15:20' ? 'selected' : ''}>🌅 07:00 às 15:20</option>
                                 <option value="15:00 às 23:20" ${horario === '15:00 às 23:20' ? 'selected' : ''}>🌙 15:00 às 23:20</option>
-                                <option value="personalizado" ${horario !== '' && horario !== '07:00 às 15:20' && horario !== '15:00 às 23:20' ? 'selected' : ''}>✏️ Personalizado...</option>
+                                <option value="personalizado" ${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:20' && horario !== '' ? 'selected' : ''}>✏️ Personalizado...</option>
                             </select>
                             
-                            <!-- Campo para horário personalizado (inicialmente escondido) -->
                             <input type="text" class="horario-personalizado" placeholder="Ex: 08:00 às 17:00" value="${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:20' && horario !== '' ? horario : ''}" 
-                                   style="width: 100%; margin-top: 5px; padding: 6px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 11px; display: none;"
+                                   style="width: 100%; margin-top: 5px; padding: 6px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 11px; display: ${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:20' && horario !== '' ? 'block' : 'none'};"
                                    data-data="${dia.data}" data-func="${func.id}" onchange="atualizarHorarioPersonalizado(this)">
                         </td>
                     `;
@@ -380,55 +381,29 @@ function renderizarTabelaEscala() {
         `;
     }).join('');
     
-    // Configurar os selects de horário
-    document.querySelectorAll('.status-select').forEach(select => {
-        const td = select.closest('td');
-        if (td) {
-            const horarioSelect = td.querySelector('.horario-select');
-            const horarioPersonalizado = td.querySelector('.horario-personalizado');
-            if (horarioSelect) {
-                horarioSelect.disabled = select.value !== 'trabalha';
-                // Mostrar/esconder campo personalizado
-                if (horarioSelect.value === 'personalizado') {
-                    if (horarioPersonalizado) horarioPersonalizado.style.display = 'block';
-                } else {
-                    if (horarioPersonalizado) horarioPersonalizado.style.display = 'none';
+    // Configurar os campos após renderizar
+    setTimeout(() => {
+        document.querySelectorAll('.status-select').forEach(select => {
+            const td = select.closest('td');
+            if (td) {
+                const horarioSelect = td.querySelector('.horario-select');
+                const horarioPersonalizado = td.querySelector('.horario-personalizado');
+                const isTrabalha = select.value === 'trabalha';
+                
+                if (horarioSelect) {
+                    horarioSelect.disabled = !isTrabalha;
+                }
+                
+                if (horarioPersonalizado) {
+                    if (horarioSelect && horarioSelect.value === 'personalizado' && isTrabalha) {
+                        horarioPersonalizado.style.display = 'block';
+                    } else {
+                        horarioPersonalizado.style.display = 'none';
+                    }
                 }
             }
-        }
-    });
-    
-    // Configurar os selects de horário para mostrar/esconder personalizado
-    document.querySelectorAll('.horario-select').forEach(select => {
-        const td = select.closest('td');
-        const horarioPersonalizado = td ? td.querySelector('.horario-personalizado') : null;
-        
-        select.onchange = function() {
-            const data = this.getAttribute('data-data');
-            const funcId = parseInt(this.getAttribute('data-func'));
-            const valor = this.value;
-            
-            if (valor === 'personalizado') {
-                if (horarioPersonalizado) {
-                    horarioPersonalizado.style.display = 'block';
-                    horarioPersonalizado.focus();
-                }
-                // Não salva ainda, espera o usuário digitar
-            } else {
-                if (horarioPersonalizado) {
-                    horarioPersonalizado.style.display = 'none';
-                }
-                // Salvar o horário selecionado
-                if (valor !== '') {
-                    if (!escalaData[data]) escalaData[data] = {};
-                    if (!escalaData[data][funcId]) escalaData[data][funcId] = {};
-                    escalaData[data][funcId].horario = valor;
-                    salvarEscalaGeral();
-                    console.log(`⏰ Horário ${valor} salvo para funcionário ${funcId} no dia ${data}`);
-                }
-            }
-        };
-    });
+        });
+    }, 50);
 }
 
 function atualizarStatus(select) {
@@ -437,23 +412,42 @@ function atualizarStatus(select) {
     const status = select.value;
     
     const td = select.closest('td');
-    const horarioInput = td ? td.querySelector('.horario-input') : null;
+    const horarioSelect = td ? td.querySelector('.horario-select') : null;
+    const horarioPersonalizado = td ? td.querySelector('.horario-personalizado') : null;
     
     if (status === 'trabalha') {
-        if (horarioInput) {
-            horarioInput.disabled = false;
+        if (horarioSelect) {
+            horarioSelect.disabled = false;
         }
         if (!escalaData[data]) escalaData[data] = {};
         if (!escalaData[data][funcId]) escalaData[data][funcId] = {};
         escalaData[data][funcId].status = 'trabalha';
-        escalaData[data][funcId].horario = horarioInput ? horarioInput.value : '';
         
-        console.log(`✅ Trabalha: Funcionário ${funcId} no dia ${data} - Horário: ${horarioInput ? horarioInput.value : ''}`);
+        // Verificar se já tem horário
+        const horarioAtual = escalaData[data][funcId].horario;
+        if (horarioSelect && horarioAtual) {
+            if (horarioAtual === '07:00 às 15:20' || horarioAtual === '15:00 às 23:20') {
+                horarioSelect.value = horarioAtual;
+            } else if (horarioAtual) {
+                horarioSelect.value = 'personalizado';
+                if (horarioPersonalizado) {
+                    horarioPersonalizado.value = horarioAtual;
+                    horarioPersonalizado.style.display = 'block';
+                }
+            }
+        }
+        
+        console.log(`✅ Trabalha: Funcionário ${funcId} no dia ${data}`);
     } 
     else if (status === 'folga') {
-        if (horarioInput) {
-            horarioInput.disabled = true;
-            horarioInput.value = '';
+        if (horarioSelect) {
+            horarioSelect.disabled = true;
+            horarioSelect.value = '';
+        }
+        if (horarioPersonalizado) {
+            horarioPersonalizado.disabled = true;
+            horarioPersonalizado.value = '';
+            horarioPersonalizado.style.display = 'none';
         }
         if (!escalaData[data]) escalaData[data] = {};
         if (!escalaData[data][funcId]) escalaData[data][funcId] = {};
@@ -463,28 +457,34 @@ function atualizarStatus(select) {
         console.log(`❌ Folga: Funcionário ${funcId} no dia ${data}`);
     }
     else if (status === 'excluir') {
-        // Excluir completamente a escala deste funcionário neste dia
-        if (horarioInput) {
-            horarioInput.disabled = true;
-            horarioInput.value = '';
+        if (horarioSelect) {
+            horarioSelect.disabled = true;
+            horarioSelect.value = '';
+        }
+        if (horarioPersonalizado) {
+            horarioPersonalizado.disabled = true;
+            horarioPersonalizado.value = '';
+            horarioPersonalizado.style.display = 'none';
         }
         if (escalaData[data] && escalaData[data][funcId]) {
             delete escalaData[data][funcId];
-            // Se não houver mais nenhum funcionário neste dia, remove o dia
             if (Object.keys(escalaData[data]).length === 0) {
                 delete escalaData[data];
             }
         }
-        // Resetar o select para opção vazia
         select.value = '';
         
         console.log(`🗑️ Excluído: Escala do funcionário ${funcId} removida no dia ${data}`);
     }
     else {
-        // Opção vazia "Selecionar"
-        if (horarioInput) {
-            horarioInput.disabled = true;
-            horarioInput.value = '';
+        if (horarioSelect) {
+            horarioSelect.disabled = true;
+            horarioSelect.value = '';
+        }
+        if (horarioPersonalizado) {
+            horarioPersonalizado.disabled = true;
+            horarioPersonalizado.value = '';
+            horarioPersonalizado.style.display = 'none';
         }
         if (escalaData[data] && escalaData[data][funcId]) {
             delete escalaData[data][funcId];
@@ -492,12 +492,9 @@ function atualizarStatus(select) {
                 delete escalaData[data];
             }
         }
-        
-        console.log(`⚪ Limpo: Escala do funcionário ${funcId} removida no dia ${data}`);
     }
     
-    // Salvar automaticamente
-    salvarEscalaFirebase();
+    salvarEscalaGeral();
 }
 
 // Função para atualizar horário pelo select
@@ -1135,4 +1132,150 @@ function salvarEscalaSemana() {
     alert("Botão funcionou! Salvando escala...");
     localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
     carregarSemana();
+}
+
+// ========== EXPORTAR ESCALA EM PDF ==========
+async function exportarEscalaPDF() {
+    console.log("📄 Iniciando exportação do PDF...");
+    
+    // Verificar se há funcionários
+    if (funcionarios.length === 0) {
+        alert("⚠️ Nenhum funcionário cadastrado para exportar!");
+        return;
+    }
+    
+    // Verificar se a semana foi carregada
+    if (semanaAtual.length === 0) {
+        alert("⚠️ Carregue uma semana primeiro!");
+        return;
+    }
+    
+    // Mostrar loading
+    const btn = event?.target;
+    const textoOriginal = btn?.innerHTML;
+    if (btn) btn.innerHTML = "⏳ Gerando PDF...";
+    
+    try {
+        // Clonar a tabela para não afetar a original
+        const tabelaOriginal = document.querySelector('.escala-table');
+        if (!tabelaOriginal) {
+            alert("❌ Tabela não encontrada!");
+            return;
+        }
+        
+        // Criar uma cópia da tabela para o PDF
+        const tabelaClone = tabelaOriginal.cloneNode(true);
+        
+        // Ajustar estilos para o PDF
+        tabelaClone.style.width = '100%';
+        tabelaClone.style.borderCollapse = 'collapse';
+        tabelaClone.style.fontSize = '10px';
+        
+        // Remover inputs e selects, substituir por texto
+        tabelaClone.querySelectorAll('.status-select').forEach(select => {
+            const option = select.options[select.selectedIndex];
+            const texto = option ? option.text : '';
+            const span = document.createElement('span');
+            span.textContent = texto;
+            span.style.display = 'inline-block';
+            span.style.padding = '4px';
+            select.parentNode.replaceChild(span, select);
+        });
+        
+        tabelaClone.querySelectorAll('.horario-select').forEach(select => {
+            const option = select.options[select.selectedIndex];
+            const texto = option && option.value !== 'personalizado' ? option.text : '';
+            const span = document.createElement('span');
+            span.textContent = texto || '---';
+            span.style.fontSize = '9px';
+            span.style.color = '#666';
+            select.parentNode.replaceChild(span, select);
+        });
+        
+        tabelaClone.querySelectorAll('.horario-personalizado').forEach(input => {
+            const texto = input.value || '';
+            const span = document.createElement('span');
+            span.textContent = texto || '---';
+            span.style.fontSize = '9px';
+            span.style.color = '#666';
+            input.parentNode.replaceChild(span, input);
+        });
+        
+        // Criar um container temporário para o PDF
+        const container = document.createElement('div');
+        container.style.padding = '20px';
+        container.style.fontFamily = 'Arial, sans-serif';
+        container.style.backgroundColor = 'white';
+        
+        // Adicionar cabeçalho
+        const hoje = new Date();
+        const dataAtual = hoje.toLocaleDateString('pt-BR');
+        const titulo = document.createElement('h2');
+        titulo.textContent = `📅 Escala de Trabalho - ${semanaAtual[0].data.split('-').reverse().join('/')} a ${semanaAtual[6].data.split('-').reverse().join('/')}`;
+        titulo.style.textAlign = 'center';
+        titulo.style.marginBottom = '20px';
+        titulo.style.color = '#0f172a';
+        container.appendChild(titulo);
+        
+        // Adicionar data de impressão
+        const dataImpressao = document.createElement('p');
+        dataImpressao.textContent = `Gerado em: ${dataAtual}`;
+        dataImpressao.style.textAlign = 'right';
+        dataImpressao.style.fontSize = '10px';
+        dataImpressao.style.color = '#64748b';
+        dataImpressao.style.marginBottom = '20px';
+        container.appendChild(dataImpressao);
+        
+        // Adicionar a tabela
+        container.appendChild(tabelaClone);
+        
+        // Adicionar rodapé
+        const rodape = document.createElement('p');
+        rodape.textContent = 'Sistema de Controle de Escala - Desenvolvido para sua empresa';
+        rodape.style.textAlign = 'center';
+        rodape.style.fontSize = '9px';
+        rodape.style.color = '#64748b';
+        rodape.style.marginTop = '20px';
+        rodape.style.paddingTop = '10px';
+        rodape.style.borderTop = '1px solid #e2e8f0';
+        container.appendChild(rodape);
+        
+        // Adicionar ao corpo temporariamente
+        document.body.appendChild(container);
+        
+        // Usar html2canvas para capturar
+        const canvas = await html2canvas(container, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            logging: false
+        });
+        
+        // Remover o container temporário
+        document.body.removeChild(container);
+        
+        // Criar PDF
+        const { jsPDF } = window.jspdf;
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = 210; // A4 largura em mm
+        const pageHeight = 297; // A4 altura em mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        let position = 0;
+        
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        
+        // Salvar PDF
+        const nomeArquivo = `escala_${semanaAtual[0].data}_a_${semanaAtual[6].data}.pdf`;
+        pdf.save(nomeArquivo);
+        
+        console.log("✅ PDF gerado com sucesso!");
+        alert("📄 PDF exportado com sucesso!");
+        
+    } catch (error) {
+        console.error("Erro ao gerar PDF:", error);
+        alert("❌ Erro ao gerar PDF. Tente novamente.");
+    } finally {
+        if (btn) btn.innerHTML = textoOriginal;
+    }
 }

@@ -15,6 +15,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
+    <!-- Biblioteca para gerar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -29,7 +33,7 @@
         }
         
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
         }
         
@@ -298,12 +302,16 @@
         .escala-table {
             min-width: 700px;
             border-collapse: collapse;
+            width: 100%;
         }
 
         .escala-table th,
         .escala-table td {
             border-right: 1px solid #e2e8f0;
             border-bottom: 1px solid #e2e8f0;
+            padding: 10px 6px;
+            text-align: center;
+            vertical-align: top;
         }
 
         .escala-table th:last-child,
@@ -311,9 +319,113 @@
             border-right: none;
         }
 
-        .funcionario-nome {
+        /* Coluna do funcionário (fixa) */
+        .escala-table .funcionario-nome {
             background: #f8fafc;
             font-weight: 600;
+            text-align: left;
+            position: sticky;
+            left: 0;
+            min-width: 130px;
+        }
+
+        /* Selects e inputs dentro da tabela */
+        .escala-table select,
+        .escala-table input {
+            font-size: 12px;
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            width: 100%;
+            max-width: 130px;
+        }
+
+        .escala-table .status-select {
+            margin-bottom: 6px;
+        }
+
+        /* ========== RESPONSIVO PARA PC (SEM ROLAGEM) ========== */
+        @media (min-width: 1200px) {
+            .escala-table-container {
+                overflow-x: visible;
+            }
+            
+            .escala-table {
+                min-width: 100%;
+                table-layout: fixed;
+            }
+            
+            .escala-table th {
+                font-size: 12px;
+                padding: 10px 4px;
+                white-space: nowrap;
+            }
+            
+            .escala-table td {
+                padding: 8px 4px;
+            }
+            
+            .escala-table select,
+            .escala-table input {
+                font-size: 11px;
+                padding: 5px;
+                max-width: 115px;
+            }
+            
+            .escala-table .funcionario-nome {
+                min-width: 120px;
+            }
+        }
+
+        /* ========== RESPONSIVO PARA NOTEBOOK ========== */
+        @media (min-width: 768px) and (max-width: 1199px) {
+            .escala-table-container {
+                overflow-x: auto;
+            }
+            
+            .escala-table {
+                min-width: 800px;
+            }
+            
+            .escala-table th {
+                font-size: 11px;
+                padding: 8px 3px;
+            }
+            
+            .escala-table td {
+                padding: 6px 3px;
+            }
+            
+            .escala-table select,
+            .escala-table input {
+                font-size: 10px;
+                padding: 4px;
+                max-width: 105px;
+            }
+        }
+
+        /* ========== RESPONSIVO PARA CELULAR ========== */
+        @media (max-width: 767px) {
+            .escala-table-container {
+                overflow-x: auto;
+            }
+            
+            .escala-table {
+                min-width: 700px;
+            }
+            
+            .escala-table th,
+            .escala-table td {
+                font-size: 10px;
+                padding: 6px 3px;
+            }
+            
+            .escala-table select,
+            .escala-table input {
+                font-size: 9px;
+                padding: 4px;
+                max-width: 95px;
+            }
         }
 
         /* Estilos para a tabela de pagamentos */
