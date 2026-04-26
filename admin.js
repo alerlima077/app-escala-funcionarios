@@ -15,6 +15,15 @@ const firebaseConfig = {
   appId: "1:1066676645204:web:3ce459ed8b8b76a7f92cc1"
 };
 
+// FORÇAR LIMPEZA TOTAL no primeiro carregamento
+if (!sessionStorage.getItem("cleanExecuted")) {
+    console.log("🧹 Executando limpeza forçada...");
+    localStorage.removeItem("escala_funcionarios");
+    localStorage.removeItem("escala_funcionarios_escala");
+    localStorage.removeItem("escala_funcionarios_pagamentos");
+    sessionStorage.setItem("cleanExecuted", "true");
+}
+
 // Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();

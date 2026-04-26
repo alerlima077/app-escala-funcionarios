@@ -1,6 +1,9 @@
-// sw.js - Service Worker para PWA
-const CACHE_NAME = 'escala-app-v1';
-const urlsToCache = [
+const CACHE_VERSION = 'v2';
+const STATIC_CACHE = `static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
+
+// Arquivos essenciais (app shell)
+const APP_SHELL = [
   '/',
   '/index.html',
   '/admin.html',
@@ -12,43 +15,93 @@ const urlsToCache = [
   '/manifest.json'
 ];
 
-// Instalação do Service Worker
+// ================= INSTALL =================
 self.addEventListener('install', event => {
+  console.log('🔧 SW instalado');
+  self.skipWaiting();
+
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Cache aberto');
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(STATIC_CACHE)
+      .then(cache => cache.addAll(APP_SHELL))
   );
 });
 
-// Busca em cache (offline first)
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      })
-  );
-});
-
-// Atualização do cache
+// ================= ACTIVATE =================
 self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
+  console.log('⚡ SW ativado');
+  self.clients.claim();
+
   event.waitUntil(
-    caches.keys().then(cacheNames => {
+    caches.keys().then(keys => {
       return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
+        keys.map(key => {
+          if (key !== STATIC_CACHE && key !== DYNAMIC_CACHE) {
+            console.log('🧹 Removendo cache antigo:', key);
+            return caches.delete(key);
           }
         })
       );
+    })
+  );
+});
+
+// ================= FETCH =================
+self.addEventListener('fetch', event => {
+  const req = event.request;
+  const url = new URL(req.url);
+
+  // ❗ NÃO INTERCEPTAR FIREBASE
+  if (
+    url.origin.includes('firebase') ||
+    url.origin.includes('googleapis')
+  ) {
+    return;
+  }
+
+  // ================= HTML (Network First) =================
+  if (req.headers.get('accept').includes('text/html')) {
+    event.respondWith(
+      fetch(req)
+        .then(res => {
+          return caches.open(DYNAMIC_CACHE).then(cache => {
+            cache.put(req, res.clone());
+            return res;
+          });
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // ================= JS/CSS (Stale While Revalidate) =================
+  if (
+    req.destination === 'script' ||
+    req.destination === 'style'
+  ) {
+    event.respondWith(
+      caches.match(req).then(cacheRes => {
+        const fetchPromise = fetch(req).then(networkRes => {
+          caches.open(STATIC_CACHE).then(cache => {
+            cache.put(req, networkRes.clone());
+          });
+          return networkRes;
+        });
+
+        return cacheRes || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // ================= OUTROS (Cache First simples) =================
+  event.respondWith(
+    caches.match(req).then(res => {
+      return res || fetch(req).then(networkRes => {
+        return caches.open(DYNAMIC_CACHE).then(cache => {
+          cache.put(req, networkRes.clone());
+          return networkRes;
+        });
+      });
     })
   );
 });
