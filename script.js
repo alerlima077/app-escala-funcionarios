@@ -31,7 +31,7 @@ async function fazerLogin() {
     console.log("🔑 Tentando login com senha:", senha);
     
     // Verificar se é admin
-    if (senha === "123456") {
+    if (senha === "864175") {
         console.log("✅ Login ADMIN bem sucedido");
         localStorage.setItem("tipoUsuario", "admin");
         window.location.href = "admin.html";
