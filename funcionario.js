@@ -31,28 +31,31 @@ if (typeof firebase !== 'undefined') {
 // ========== FUNÇÃO PARA CARREGAR ESCALA ==========
 async function carregarEscalaFirebase() {
     try {
-        if (!db) {
-            console.log("⚠️ Firebase não disponível");
-            return;
-        }
-        
+        if (!db) return;
+
         const snapshot = await db.collection('escala').get();
         escalaData = {};
-        
+
         snapshot.forEach(doc => {
             const item = doc.data();
             const data = item.data;
             const funcId = item.funcionario_id;
-            
+
+            let horarios = item.horarios || [];
+
+            // compatibilidade com versão antiga
+            if (horarios.length === 0 && item.horario) {
+                horarios = [item.horario];
+            }
+
             if (!escalaData[data]) escalaData[data] = {};
+
             escalaData[data][funcId] = {
                 status: item.status,
-                horario: item.horario || ''
+                horarios: horarios
             };
         });
-        
-        console.log(`✅ ${snapshot.docs.length} registros de escala carregados`);
-        
+
     } catch (error) {
         console.error("Erro ao carregar escala:", error);
     }
@@ -61,25 +64,21 @@ async function carregarEscalaFirebase() {
 // ========== FUNÇÃO PARA CARREGAR PAGAMENTOS ==========
 async function carregarPagamentosFirebase() {
     try {
-        if (!db) {
-            console.log("⚠️ Firebase não disponível para pagamentos");
-            return;
-        }
-        
+        if (!db) return;
+
         const snapshot = await db.collection('pagamentos').get();
         pagamentosData = {};
-        
+
         snapshot.forEach(doc => {
             const item = doc.data();
             const data = item.data;
             const funcId = item.funcionario_id;
-            
+
             if (!pagamentosData[data]) pagamentosData[data] = {};
-            pagamentosData[data][funcId] = item.pago;
+
+            pagamentosData[data][funcId] = item.pagamentos || [];
         });
-        
-        console.log(`✅ ${snapshot.docs.length} registros de pagamentos carregados`);
-        
+
     } catch (error) {
         console.error("Erro ao carregar pagamentos:", error);
     }
@@ -182,7 +181,8 @@ function calcularResumoMes() {
         
         if (escala && escala.status === 'trabalha') {
             diasTrabalhados++;
-            const foiPago = pagamentosData[dataStr] && pagamentosData[dataStr][funcionarioAtual.id] === true;
+            const pagamentosArr = pagamentosData[dataStr]?.[funcionarioAtual.id] || [];
+            const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
             if (foiPago) diasPagos++;
         } else if (escala && escala.status === 'folga') {
             diasFolga++;
@@ -235,13 +235,15 @@ function renderizarCalendario() {
         let pagoIcon = '';
         
         const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
-        const foiPago = pagamentosData[dataStr] && pagamentosData[dataStr][funcionarioAtual.id] === true;
+        const pagamentosArr = pagamentosData[dataStr]?.[funcionarioAtual.id] || [];
+        const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
         
         if (escala) {
             if (escala.status === 'trabalha') {
                 statusClass = 'dia-trabalha';
                 statusIcon = '✅';
-                horario = escala.horario || '';
+                const horarios = escala.horarios || [];
+                horario = horarios.join(' | ');
                 if (foiPago) {
                     pagoIcon = '💰';
                 }
@@ -259,7 +261,7 @@ function renderizarCalendario() {
             <div class="dia ${statusClass}" onclick="verDetalhes('${dataStr}', ${dia})">
                 <div class="dia-numero">${dia}${isHoje ? '📍' : ''}</div>
                 <div class="dia-indicador">${statusIcon} ${pagoIcon}</div>
-                ${horario ? `<div class="dia-indicador" style="font-size: 0.6rem;">${horario.substring(0, 8)}</div>` : ''}
+                ${horario ? `<div class="dia-indicador">${horario}</div>` : ''}
             </div>
         `;
     }
@@ -273,7 +275,8 @@ function verDetalhes(dataStr, diaNum) {
     const [ano, mes, dia] = dataStr.split('-');
     const dataFormatada = `${dia}/${mes}/${ano}`;
     
-    const foiPago = pagamentosData[dataStr] && pagamentosData[dataStr][funcionarioAtual.id] === true;
+    const pagamentosArr = pagamentosData[dataStr]?.[funcionarioAtual.id] || [];
+    const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
     
     let statusText = '';
     let statusIcon = '';
@@ -284,7 +287,11 @@ function verDetalhes(dataStr, diaNum) {
     if (escala && escala.status === 'trabalha') {
         statusText = 'Dia de Trabalho';
         statusIcon = '✅';
-        horario = escala.horario || 'Horário não definido';
+        const horarios = escala.horarios || [];
+
+        horario = horarios.length > 0 
+            ? horarios.join('<br>')
+            : 'Horário não definido';
         
         if (foiPago) {
             pagamentoText = 'Pagamento Confirmado';

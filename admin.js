@@ -16,13 +16,11 @@ const firebaseConfig = {
 };
 
 // FORÇAR LIMPEZA TOTAL no primeiro carregamento
-if (!sessionStorage.getItem("cleanExecuted")) {
-    console.log("🧹 Executando limpeza forçada...");
-    localStorage.removeItem("escala_funcionarios");
-    localStorage.removeItem("escala_funcionarios_escala");
-    localStorage.removeItem("escala_funcionarios_pagamentos");
-    sessionStorage.setItem("cleanExecuted", "true");
-}
+//if (!sessionStorage.getItem("cleanExecuted")) {
+    //console.log("🧹 Executando limpeza forçada...");
+    //localStorage.removeItem("escala_funcionarios");
+    //sessionStorage.setItem("cleanExecuted", "true");
+//}
 
 // Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
@@ -61,7 +59,7 @@ async function carregarDados() {
         // Se não tem funcionários, NÃO CRIA AUTOMATICAMENTE
         // Mantém vazio para o admin cadastrar manualmente
         
-        await carregarEscalaFirebase();
+        //await carregarEscalaFirebase();
         renderizarLista();
     } catch (error) {
         console.error("❌ Erro ao carregar:", error);
@@ -169,54 +167,16 @@ function calcularValorDia(funcionario, dataStr) {
 
 // ========== FUNÇÃO PARA SALVAR ESCALA DA SEMANA ==========
 async function salvarEscalaSemana() {
-    console.log("💾 Salvando escala da semana...");
-    
     try {
-        // Salvar no Firebase se disponível
-        if (typeof db !== 'undefined' && db) {
-            await salvarEscalaFirebase();
-            console.log("✅ Salvo no Firebase");
-        }
-        
-        // Salvar no localStorage como backup
+        await salvarEscalaFirebase();
         localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
-        
-        alert("✅ Escala da semana salva com sucesso!");
-        
-        // Recarregar a tabela para mostrar os dados salvos
+        alert("✅ Escala salva com sucesso!");
         carregarSemana();
-        
     } catch (error) {
-        console.error("Erro ao salvar escala:", error);
-        alert("❌ Erro ao salvar escala. Tente novamente.");
+        console.error(error);
+        alert("Erro ao salvar");
     }
 }
-
-// ========== FUNÇÃO PARA SALVAR ESCALA DA SEMANA ==========
-async function salvarEscalaSemana() {
-    console.log("💾 Salvando escala da semana...");
-    
-    try {
-        // Salvar no Firebase se disponível
-        if (typeof db !== 'undefined' && db) {
-            await salvarEscalaFirebase();
-            console.log("✅ Salvo no Firebase");
-        }
-        
-        // Salvar no localStorage como backup
-        localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
-        
-        alert("✅ Escala da semana salva com sucesso!");
-        
-        // Recarregar a tabela para mostrar os dados salvos
-        carregarSemana();
-        
-    } catch (error) {
-        console.error("Erro ao salvar escala:", error);
-        alert("❌ Erro ao salvar escala. Tente novamente.");
-    }
-}
-
 // ========== FUNÇÕES DE ESCALA NO FIREBASE ==========
 
 async function carregarEscalaFirebase() {
@@ -256,10 +216,24 @@ async function salvarEscalaFirebase() {
         
         const batch = db.batch();
         
-        const snapshot = await db.collection('escala').get();
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
+        //const snapshot = await db.collection('escala').get();
+        //snapshot.forEach(doc => {
+            //batch.delete(doc.ref);
+        //});
+
+        for (const [data, funcionarios] of Object.entries(escalaData)) {
+            for (const [funcId, dados] of Object.entries(funcionarios)) {
+                const docId = `${data}_${funcId}`;
+                const docRef = db.collection('escala').doc(docId);
+
+                batch.set(docRef, {
+                    data,
+                    funcionario_id: parseInt(funcId),
+                    status: dados.status,
+                    horarios: dados.horarios || []
+                }, { merge: true });
+            }
+        }
         
         for (const [data, funcionarios] of Object.entries(escalaData)) {
             for (const [funcId, dados] of Object.entries(funcionarios)) {
@@ -779,13 +753,14 @@ function atualizarResumoPagamentos() {
                 diasTrabalhados++;
                 const valorDia = calcularValorDia(func, dataStr);
                 let totalValor = 0;
+
                 for (let dia = 1; dia <= diasNoMes; dia++) {
                     const dataStr = `${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
                     const escala = escalaData[dataStr] && escalaData[dataStr][func.id];
+
                     if (escala && escala.status === 'trabalha') {
                         diasTrabalhados++;
-                        const valorDia = calcularValorDia(func, dataStr);
-                        totalValor += valorDia;
+                        totalValor += calcularValorDia(func, dataStr);
                     }
                 }
             }
@@ -1291,7 +1266,7 @@ async function inicializarSistema() {
     console.log("🚀 Inicializando sistema...");
     
     await carregarDados();
-    await carregarEscalaFirebase();
+    //await carregarEscalaFirebase();
     await carregarPagamentosFirebase();
     
     if (Object.keys(escalaData).length === 0) {
@@ -1315,28 +1290,6 @@ async function inicializarSistema() {
 // Inicializar o sistema
 inicializarSistema();
 
-// ========== SALVAR ESCALA DA SEMANA ==========
-window.salvarEscalaSemana = function() {
-    console.log("💾 Salvar escala da semana chamado");
-    
-    // Salvar no localStorage
-    localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
-    
-    // Salvar no Firebase se disponível
-    if (typeof db !== 'undefined' && db) {
-        // Salvar assincronamente sem travar o clique
-        salvarEscalaFirebase().catch(console.error);
-    }
-    
-    alert("✅ Escala da semana salva com sucesso!");
-    
-    // Recarregar a tabela
-    if (typeof carregarSemana === 'function') {
-        carregarSemana();
-    }
-};
-
-console.log("✅ Função salvarEscalaSemana registrada!");
 
 // Função simples para teste
 function salvarEscalaSemana() {
