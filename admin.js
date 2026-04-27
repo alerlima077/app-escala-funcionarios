@@ -475,13 +475,18 @@ function renderizarHorarios(horarios, data, funcId) {
                     <select class="horario-select" data-data="${data}" data-func="${funcId}" data-index="0" onchange="atualizarHorarioSelect(this)" 
                             style="width: 100%; padding: 5px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 11px;">
                         <option value="">-- Selecione o horário --</option>
-                        <option value="07:00 às 15:20">🌅 07:00 às 15:20 (R$ 90,00)</option>
-                        <option value="15:00 às 23:30">🌙 15:00 às 23:30 (R$ 90,00)</option>
-                        <option value="07:00 às 23:30">🔄 07:00 às 23:30 (Dobro - R$ 180,00)</option>
+                        <option value="07:00 às 15:20">🌅 07:00 às 15:20</option>
+                        <option value="15:00 às 23:30">🌙 15:00 às 23:30</option>
+                        <option value="07:00 às 23:30">🔄 07:00 às 23:30</option>
                         <option value="personalizado">✏️ Personalizado...</option>
                     </select>
-                    <input type="text" class="horario-personalizado" placeholder="Ex: 08:00 às 17:00" 
-                           style="width: 100%; margin-top: 4px; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 10px; display: none;">
+                    <input type="text" class="horario-personalizado"
+                        data-data="${data}"
+                        data-func="${funcId}"
+                        data-index="0"
+                        oninput="atualizarHorarioPersonalizado(this)"
+                        placeholder="Ex: 08:00 às 17:00"
+                        style="width: 100%; margin-top: 4px; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 10px; display: none;">
                 </div>`;
     }
     
@@ -492,17 +497,23 @@ function renderizarHorarios(horarios, data, funcId) {
                 <select class="horario-select" data-data="${data}" data-func="${funcId}" data-index="${index}" onchange="atualizarHorarioSelect(this)" 
                         style="width: calc(100% - 25px); padding: 5px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 11px; display: inline-block;">
                     <option value="">-- Selecione o horário --</option>
-                    <option value="07:00 às 15:20" ${horario === '07:00 às 15:20' ? 'selected' : ''}>🌅 07:00 às 15:20 (R$ 90,00)</option>
-                    <option value="15:00 às 23:30" ${horario === '15:00 às 23:30' ? 'selected' : ''}>🌙 15:00 às 23:30 (R$ 90,00)</option>
-                    <option value="07:00 às 23:30" ${horario === '07:00 às 23:30' ? 'selected' : ''}>🔄 07:00 às 23:30 (Dobro - R$ 180,00)</option>
-                    <option value="personalizado" ${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:30' && horario !== '07:00 às 23:30' && horario !== '' ? 'selected' : ''}>✏️ Personalizado...</option>
+                    <option value="07:00 às 15:20" ${horario === '07:00 às 15:20' ? 'selected' : ''}>🌅 07:00 às 15:20</option>
+                    <option value="15:00 às 23:30" ${horario === '15:00 às 23:30' ? 'selected' : ''}>🌙 15:00 às 23:30</option>
+                    <option value="07:00 às 23:30" ${horario === '07:00 às 23:30' ? 'selected' : ''}>🔄 07:00 às 23:30</option>
+                    <option value="personalizado" ${!['07:00 às 15:20','15:00 às 23:30','07:00 às 23:30',''].includes(horario) ? 'selected' : ''}>✏️ Personalizado...</option>
                 </select>
                 <button type="button" class="btn-remove-horario" onclick="removerHorario('${data}', ${funcId}, ${index})"
                         style="width: 20px; margin-left: 4px; padding: 4px; font-size: 10px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; display: inline-block;">
                     ✕
                 </button>
-                <input type="text" class="horario-personalizado" placeholder="Ex: 08:00 às 17:00" value="${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:30' && horario !== '07:00 às 23:30' ? horario : ''}" 
-                       style="width: 100%; margin-top: 4px; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 10px; display: ${horario !== '07:00 às 15:20' && horario !== '15:00 às 23:30' && horario !== '07:00 às 23:30' && horario !== '' ? 'block' : 'none'};">
+                <input type="text" class="horario-personalizado"
+                    data-data="${data}"
+                    data-func="${funcId}"
+                    data-index="${index}"
+                    oninput="atualizarHorarioPersonalizado(this)"
+                    placeholder="Ex: 08:00 às 17:00"
+                    value="${!['07:00 às 15:20','15:00 às 23:30','07:00 às 23:30',''].includes(horario) ? horario : ''}"
+                    style="width: 100%; margin-top: 4px; padding: 4px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 10px; display: ${!['07:00 às 15:20','15:00 às 23:30','07:00 às 23:30',''].includes(horario) ? 'block' : 'none'};">
             </div>
         `;
     });
@@ -630,28 +641,25 @@ function atualizarHorarioPersonalizado(input) {
     const data = input.getAttribute('data-data');
     const funcId = parseInt(input.getAttribute('data-func'));
     const index = parseInt(input.getAttribute('data-index'));
-    const horario = input.value;
-    const divHorario = input.closest('.horario-item');
-    const select = divHorario ? divHorario.querySelector('.horario-select') : null;
-    
-    if (horario !== '') {
-        if (!escalaData[data]) escalaData[data] = {};
-        if (!escalaData[data][funcId]) {
-            escalaData[data][funcId] = { status: 'trabalha', horarios: [], adicional: 0 };
-        }
-        if (!escalaData[data][funcId].horarios) {
-            escalaData[data][funcId].horarios = [];
-        }
-        
-        escalaData[data][funcId].horarios[index] = horario;
-        salvarEscalaGeral();
-        
-        if (select) {
-            select.value = 'personalizado';
-        }
-        
-        console.log(`⏰ Horário personalizado "${horario}" salvo`);
+    const horario = input.value.trim();
+
+    if (!horario) return;
+
+    if (!escalaData[data]) escalaData[data] = {};
+    if (!escalaData[data][funcId]) {
+        escalaData[data][funcId] = { status: 'trabalha', horarios: [] };
     }
+
+    if (!escalaData[data][funcId].horarios) {
+        escalaData[data][funcId].horarios = [];
+    }
+
+    escalaData[data][funcId].horarios[index] = horario;
+
+    console.log(`💾 Horário personalizado salvo: ${horario}`);
+
+    // 🔥 IMPORTANTE: salvar imediatamente
+    localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
 }
 
 // ==========================
