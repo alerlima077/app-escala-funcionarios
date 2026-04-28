@@ -76,27 +76,30 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // ================= JS/CSS (Stale While Revalidate) =================
-  if (
-    req.destination === 'script' ||
-    req.destination === 'style'
-  ) {
-    event.respondWith(
-      caches.match(req).then(cacheRes => {
-        const fetchPromise = fetch(req).then(networkRes => {
-          if (networkRes && networkRes.ok) {
-            caches.open(STATIC_CACHE).then(cache => {
-              cache.put(req, networkRes.clone());
-            });
-          }
-          return networkRes;
-        }).catch(() => cacheRes);
-        
-        return cacheRes || fetchPromise;
+// ================= JS/CSS (Network First - FIX CLONE BUG) =================
+if (
+  req.destination === 'script' ||
+  req.destination === 'style'
+) {
+  event.respondWith(
+    fetch(req)
+      .then(networkRes => {
+        if (!networkRes || !networkRes.ok) {
+          return caches.match(req);
+        }
+
+        const responseClone = networkRes.clone(); // 🔥 CLONA ANTES DE USAR
+
+        caches.open(STATIC_CACHE).then(cache => {
+          cache.put(req, responseClone);
+        });
+
+        return networkRes; // usa original
       })
-    );
-    return;
-  }
+      .catch(() => caches.match(req))
+  );
+  return;
+}
 
   // ================= OUTROS (Cache First) =================
   event.respondWith(
