@@ -76,7 +76,7 @@ async function carregarPagamentosFirebase() {
 
             if (!pagamentosData[data]) pagamentosData[data] = {};
 
-            pagamentosData[data][funcId] = item.pagamentos || [];
+            pagamentosData[data][funcId] = item || {};
         });
 
     } catch (error) {
@@ -181,7 +181,8 @@ function calcularResumoMes() {
         
         if (escala && escala.status === 'trabalha') {
             diasTrabalhados++;
-            const pagamentosArr = pagamentosData[dataStr]?.[funcionarioAtual.id] || [];
+            const dadosPagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
+            const pagamentosArr = dadosPagamento.pagos || [];
             const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
             if (foiPago) diasPagos++;
         } else if (escala && escala.status === 'folga') {
@@ -189,8 +190,31 @@ function calcularResumoMes() {
         }
     }
     
-    const valorPago = diasPagos * funcionarioAtual.diaria;
-    
+    let valorPago = 0;
+
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+
+        const dataStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+        const escala = escalaData[dataStr]?.[funcionarioAtual.id];
+
+        if (escala && escala.status === 'trabalha') {
+
+            const dados = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
+            const pagos = dados.pagos || [];
+
+            const foiPago = pagos.length > 0 && pagos.every(p => p === true);
+
+            if (foiPago) {
+                let valorDia = funcionarioAtual.diaria;
+
+                valorDia += Number(dados.adicional || 0);
+                valorDia -= Number(dados.desconto || 0);
+
+                valorPago += valorDia;
+            }
+        }
+    }
+        
     return {
         diasTrabalhados,
         diasFolga,
@@ -235,7 +259,8 @@ function renderizarCalendario() {
         let pagoIcon = '';
         
         const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
-        const pagamentosArr = pagamentosData[dataStr]?.[funcionarioAtual.id] || [];
+        const dadosPagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
+        const pagamentosArr = dadosPagamento.pagos || [];
         const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
         
         if (escala) {
@@ -275,7 +300,8 @@ function verDetalhes(dataStr, diaNum) {
     const [ano, mes, dia] = dataStr.split('-');
     const dataFormatada = `${dia}/${mes}/${ano}`;
     
-    const pagamentosArr = pagamentosData[dataStr]?.[funcionarioAtual.id] || [];
+    const dadosPagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
+    const pagamentosArr = dadosPagamento.pagos || [];
     const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
     
     let statusText = '';
