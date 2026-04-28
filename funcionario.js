@@ -66,21 +66,20 @@ async function carregarPagamentosFirebase() {
     try {
         if (!db) return;
 
-        const snapshot = await db.collection('pagamentos').get();
-        pagamentosData = {};
+        const docRef = db.collection("sistema").doc("pagamentos");
+        const docSnap = await docRef.get();
 
-        snapshot.forEach(doc => {
-            const item = doc.data();
-            const data = item.data;
-            const funcId = item.funcionario_id;
+        if (docSnap.exists) {
+            const data = docSnap.data();
 
-            if (!pagamentosData[data]) pagamentosData[data] = {};
-
-            pagamentosData[data][funcId] = item || {};
-        });
+            pagamentosData = data?.dados || {};
+        } else {
+            pagamentosData = {};
+        }
 
     } catch (error) {
         console.error("Erro ao carregar pagamentos:", error);
+        pagamentosData = {};
     }
 }
 
@@ -141,7 +140,7 @@ function renderizarTela() {
                     <div class="info-label">Dias de Folga</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-valor">R$ ${(resumo.valorPago || 0).toFixed(2)}</div>
+                    <div class="info-valor">💰 R$ ${(resumo.valorPago || 0).toFixed(2)}</div>
                     <div class="info-label">Valor Recebido</div>
                 </div>
             </div>
@@ -181,8 +180,13 @@ function calcularResumoMes() {
         
         if (escala && escala.status === 'trabalha') {
             diasTrabalhados++;
-            const dadosPagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
-            const pagamentosArr = dadosPagamento.pagos || [];
+            const dadosPagamento = normalizarPagamento(
+                pagamentosData[dataStr]?.[funcionarioAtual.id],
+                dataStr,
+                funcionarioAtual.id
+            );
+
+            const pagamentosArr = dadosPagamento.pagos;
             const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
             if (foiPago) diasPagos++;
         } else if (escala && escala.status === 'folga') {
@@ -259,16 +263,24 @@ function renderizarCalendario() {
         let pagoIcon = '';
         
         const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
-        const dadosPagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
-        const pagamentosArr = dadosPagamento.pagos || [];
+        const dadosPagamento = normalizarPagamento(
+            pagamentosData[dataStr]?.[funcionarioAtual.id],
+            dataStr,
+            funcionarioAtual.id
+        );
+
+        const pagamentosArr = dadosPagamento.pagos;
         const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
+        if (foiPago) {
+            statusClass += ' dia-pago';
+        }
         
         if (escala) {
             if (escala.status === 'trabalha') {
                 statusClass = 'dia-trabalha';
                 statusIcon = '✅';
                 const horarios = escala.horarios || [];
-                horario = horarios.join(' | ');
+                horario = horarios.join('<br>');
                 if (foiPago) {
                     pagoIcon = '💰';
                 }
@@ -300,9 +312,24 @@ function verDetalhes(dataStr, diaNum) {
     const [ano, mes, dia] = dataStr.split('-');
     const dataFormatada = `${dia}/${mes}/${ano}`;
     
-    const dadosPagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
-    const pagamentosArr = dadosPagamento.pagos || [];
+    const dadosPagamento = normalizarPagamento(
+        pagamentosData[dataStr]?.[funcionarioAtual.id],
+        dataStr,
+        funcionarioAtual.id
+    );
+
+    const pagamentosArr = dadosPagamento.pagos;
     const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
+
+    let valorInfo = '';
+
+    if (escala && escala.status === 'trabalha' && foiPago) {
+        let valor = funcionarioAtual.diaria;
+        valor += Number(dadosPagamento.adicional || 0);
+        valor -= Number(dadosPagamento.desconto || 0);
+
+        valorInfo = `<div style="margin-top:10px;font-weight:bold;">💰 R$ ${valor.toFixed(2)}</div>`;
+    }
     
     let statusText = '';
     let statusIcon = '';
@@ -366,7 +393,7 @@ function verDetalhes(dataStr, diaNum) {
     modal.querySelector('.modal-horario').innerHTML = `⏰ ${horario}`;
     
     const pagamentoDiv = modal.querySelector('.modal-pagamento');
-    pagamentoDiv.innerHTML = `${pagamentoIcon} ${pagamentoText}`;
+    pagamentoDiv.innerHTML = `${pagamentoIcon} ${pagamentoText} ${valorInfo}`;
     pagamentoDiv.style.background = foiPago ? '#dcfce7' : '#fef3c7';
     pagamentoDiv.style.color = foiPago ? '#166534' : '#92400e';
     

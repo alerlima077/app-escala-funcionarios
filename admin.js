@@ -1561,3 +1561,30 @@ async function exportarEscalaPDF() {
         if (btn) btn.innerHTML = textoOriginal;
     }
 }
+
+function normalizarPagamento(registro, dataStr, funcId) {
+    if (!registro) return {
+        pagos: [],
+        adicional: 0,
+        desconto: 0,
+        descricao: ""
+    };
+
+    // 🔥 se for array antigo
+    if (Array.isArray(registro)) {
+        return {
+            pagos: registro,
+            adicional: 0,
+            desconto: 0,
+            descricao: ""
+        };
+    }
+
+    // 🔥 garantir estrutura
+    return {
+        pagos: registro.pagos || [],
+        adicional: Number(registro.adicional || 0),
+        desconto: Number(registro.desconto || 0),
+        descricao: registro.descricao || ""
+    };
+}
