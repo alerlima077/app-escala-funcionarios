@@ -19,6 +19,49 @@ const firebaseConfig = {
     appId: "1:1066676645204:web:3ce459ed8b8b76a7f92cc1"
 };
 
+function normalizarPagamento(registro, dataStr, funcId) {
+    if (!registro) {
+        const escala = escalaData[dataStr]?.[funcId];
+        const numHorarios = (escala && escala.horarios)
+            ? escala.horarios.length
+            : 1;
+
+        return {
+            pagos: new Array(numHorarios).fill(false),
+            adicional: 0,
+            desconto: 0,
+            descricao: ""
+        };
+    }
+
+    // 🔥 Se for formato antigo (array direto)
+    if (Array.isArray(registro)) {
+        return {
+            pagos: registro,
+            adicional: 0,
+            desconto: 0,
+            descricao: ""
+        };
+    }
+
+    // 🔥 Garantir estrutura correta
+    if (!Array.isArray(registro.pagos)) {
+        const escala = escalaData[dataStr]?.[funcId];
+        const numHorarios = (escala && escala.horarios)
+            ? escala.horarios.length
+            : 1;
+
+        registro.pagos = new Array(numHorarios).fill(false);
+    }
+
+    return {
+        pagos: registro.pagos,
+        adicional: Number(registro.adicional || 0),
+        desconto: Number(registro.desconto || 0),
+        descricao: registro.descricao || ""
+    };
+}
+
 let db = null;
 if (typeof firebase !== 'undefined') {
     if (!firebase.apps.length) {
@@ -57,9 +100,10 @@ async function carregarEscalaFirebase() {
         });
 
     } catch (error) {
-        console.error("Erro ao carregar escala:", error);
+        console.error("🚨 ERRO DETALHADO:", error);
+        alert(error.message);
+        }
     }
-}
 
 // ========== FUNÇÃO PARA CARREGAR PAGAMENTOS ==========
 async function carregarPagamentosFirebase() {
@@ -78,7 +122,8 @@ async function carregarPagamentosFirebase() {
         }
 
     } catch (error) {
-        console.error("Erro ao carregar pagamentos:", error);
+        console.error("🚨 ERRO DETALHADO:", error);
+        alert(error.message);
         pagamentosData = {};
     }
 }
@@ -103,7 +148,8 @@ async function carregarDados() {
         renderizarTela();
         
     } catch (error) {
-        console.error("Erro ao carregar dados:", error);
+        console.error("🚨 ERRO DETALHADO:", error);
+        alert(error.message);
         document.getElementById("app").innerHTML = `
             <div class="loading">
                 <p>❌ Erro ao carregar dados</p>
