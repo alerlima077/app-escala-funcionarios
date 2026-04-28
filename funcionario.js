@@ -82,7 +82,7 @@ async function carregarEscalaFirebase() {
         snapshot.forEach(doc => {
             const item = doc.data();
             const data = item.data;
-            const funcId = item.funcionario_id;
+            const funcId = String(item.funcionario_id);
 
             let horarios = item.horarios || [];
 

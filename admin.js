@@ -185,7 +185,7 @@ async function carregarEscalaFirebase() {
         snapshot.forEach(doc => {
             const item = doc.data();
             const data = item.data;
-            const funcId = item.funcionario_id;
+            const funcId = String(item.funcionario_id);
             
             // Converter estrutura antiga (horario) para nova (horarios)
             let horarios = item.horarios || [];
@@ -787,19 +787,16 @@ function salvarPagamentosStorage() {
 
 async function carregarPagamentosFirebase() {
     try {
-        if (!db) return;
+        const docRef = doc(db, "sistema", "pagamentos");
+        const docSnap = await getDoc(docRef);
 
-        const docRef = db.collection("sistema").doc("pagamentos");
-        const docSnap = await docRef.get();
-
-        if (docSnap.exists) {
-            const data = docSnap.data();
-
-            // 🔥 GARANTE OBJETO VÁLIDO
-            pagamentosData = (data && data.dados) ? data.dados : {};
+        if (docSnap.exists()) {
+            pagamentosData = docSnap.data().dados || {};
         } else {
             pagamentosData = {};
         }
+
+        console.log("✅ Pagamentos carregados:", pagamentosData);
 
     } catch (erro) {
         console.error("Erro ao carregar pagamentos:", erro);

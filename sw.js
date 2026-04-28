@@ -1,5 +1,6 @@
-// sw.js - Service Worker para PWA (CORRIGIDO)
-const CACHE_VERSION = 'v3';
+// sw.js - Service Worker (VERSÃO ESTÁVEL FINAL)
+
+const CACHE_VERSION = 'v4'; // 🔥 IMPORTANTE: mudar versão para limpar cache antigo
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
@@ -24,7 +25,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then(cache => cache.addAll(APP_SHELL))
-      .catch(err => console.log('Erro ao adicionar ao cache:', err))
+      .catch(err => console.log('Erro ao cachear:', err))
   );
 });
 
@@ -34,82 +35,81 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 
   event.waitUntil(
-    caches.keys().then(keys => {
-      return Promise.all(
+    caches.keys().then(keys =>
+      Promise.all(
         keys.map(key => {
           if (key !== STATIC_CACHE && key !== DYNAMIC_CACHE) {
             console.log('🧹 Removendo cache antigo:', key);
             return caches.delete(key);
           }
         })
-      );
-    })
+      )
+    )
   );
 });
 
-// ================= FETCH (CORRIGIDO) =================
+// ================= FETCH =================
 self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // ❗ NÃO INTERCEPTAR FIREBASE
-  if (
-    url.origin.includes('firebase') ||
-    url.origin.includes('googleapis') ||
-    url.pathname.includes('firestore')
-  ) {
+  // 🚫 NÃO INTERCEPTAR NADA FORA DO SEU DOMÍNIO
+  if (url.origin !== location.origin) {
     return;
   }
 
-  // ================= HTML (Network First) =================
-  if (req.headers.get('accept') && req.headers.get('accept').includes('text/html')) {
+  // ================= HTML → NETWORK FIRST =================
+  if (req.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
       fetch(req)
         .then(res => {
-          return caches.open(DYNAMIC_CACHE).then(cache => {
-            cache.put(req, res.clone());
-            return res;
-          }).catch(() => res);
+          if (!res || !res.ok) return res;
+
+          const clone = res.clone();
+          caches.open(DYNAMIC_CACHE).then(cache => cache.put(req, clone));
+
+          return res;
         })
         .catch(() => caches.match(req))
     );
     return;
   }
 
-// ================= JS/CSS (Network First - FIX CLONE BUG) =================
-if (
-  req.destination === 'script' ||
-  req.destination === 'style'
-) {
+  // ================= JS/CSS → NETWORK FIRST =================
+  if (
+    req.destination === 'script' ||
+    req.destination === 'style'
+  ) {
+    event.respondWith(
+      fetch(req)
+        .then(res => {
+          if (!res || !res.ok) throw new Error('Falha na rede');
+
+          const clone = res.clone();
+          caches.open(STATIC_CACHE).then(cache => cache.put(req, clone));
+
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // ================= OUTROS → CACHE FIRST =================
   event.respondWith(
-    fetch(req)
-      .then(networkRes => {
-        if (!networkRes || !networkRes.ok) {
-          return caches.match(req);
-        }
+    caches.match(req).then(cacheRes => {
+      if (cacheRes) return cacheRes;
 
-        const responseClone = networkRes.clone(); // 🔥 CLONA ANTES DE USAR
+      return fetch(req)
+        .then(res => {
+          if (!res || !res.ok) return res;
 
-        caches.open(STATIC_CACHE).then(cache => {
-          cache.put(req, responseClone);
-        });
+          const clone = res.clone();
+          caches.open(DYNAMIC_CACHE).then(cache => cache.put(req, clone));
 
-        return networkRes; // usa original
-      })
-      .catch(() => caches.match(req))
-  );
-  return;
-}
-
-  // ================= OUTROS (Cache First) =================
-  event.respondWith(
-    caches.match(req).then(res => {
-      return res || fetch(req).then(networkRes => {
-        return caches.open(DYNAMIC_CACHE).then(cache => {
-          cache.put(req, networkRes.clone());
-          return networkRes;
-        }).catch(() => networkRes);
-      }).catch(() => new Response('Offline', { status: 503 }));
+          return res;
+        })
+        .catch(() => new Response('Offline', { status: 503 }));
     })
   );
 });
