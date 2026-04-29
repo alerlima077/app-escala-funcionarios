@@ -142,23 +142,33 @@ function calcularValorDia(funcionario, dataStr) {
     if (!escala || escala.status !== 'trabalha') return 0;
     
     const horarios = escala.horarios || [];
-    let valorTotal = 0;
-
+    
+    // 🔥 Buscar adicional e desconto do pagamento
+    const pagamento = pagamentosData[dataStr]?.[funcionario.id] || {};
+    const adicional = Number(pagamento.adicional) || 0;
+    const desconto = Number(pagamento.desconto) || 0;
+    
+    let valorBase = 0;
+    
     if (horarios.length > 0) {
         horarios.forEach(horario => {
             if (horario === '07:00 às 15:20' || horario === '15:00 às 23:30') {
-                valorTotal += funcionario.diaria;
+                valorBase += funcionario.diaria;
             } else if (horario === '07:00 às 23:30') {
-                valorTotal += funcionario.diaria * 2;
+                valorBase += funcionario.diaria * 2;
             } else if (horario && horario !== '') {
-                valorTotal += funcionario.diaria;
+                valorBase += funcionario.diaria;
             }
         });
     } else {
-        valorTotal += funcionario.diaria;
+        valorBase = funcionario.diaria;
     }
-
-    return valorTotal;
+    
+    // 🔥 APLICAR ADICIONAL E DESCONTO
+    let valorFinal = valorBase + adicional - desconto;
+    valorFinal = Math.max(0, valorFinal);
+    
+    return valorFinal;
 }
 
 // ========== FUNÇÃO PARA SALVAR ESCALA DA SEMANA ==========
@@ -774,6 +784,8 @@ function carregarPagamentosStorage() {
     if (pagamentosSalvos && Object.keys(pagamentosData).length === 0) {
         pagamentosData = JSON.parse(pagamentosSalvos);
     }
+    // No final da função carregarPagamentos, antes do último }
+    console.log("✅ Tela de pagamentos atualizada!");
 }
 
 // Salvar pagamentos
@@ -787,41 +799,91 @@ function salvarPagamentosStorage() {
 
 async function carregarPagamentosFirebase() {
     try {
-        const docRef = doc(db, "sistema", "pagamentos");
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            pagamentosData = docSnap.data().dados || {};
-        } else {
-            pagamentosData = {};
+        if (!db) {
+            console.log("⚠️ Firebase não disponível");
+            return false;
         }
+        
+        console.log("🔄 Carregando pagamentos do Firebase...");
+        
+        const snapshot = await db.collection('pagamentos').get();
+        
+        // 🔥 LIMPAR E RECRIAR O OBJETO
+        const novoPagamentosData = {};
 
-        console.log("✅ Pagamentos carregados:", pagamentosData);
+        snapshot.forEach(docSnapshot => {
+            const item = docSnapshot.data();
+            const data = item.data;
+            const funcId = item.funcionario_id;
 
-    } catch (erro) {
-        console.error("Erro ao carregar pagamentos:", erro);
-        pagamentosData = {};
+            if (!novoPagamentosData[data]) novoPagamentosData[data] = {};
+            
+            // 🔥 GARANTIR QUE pagos É UM ARRAY
+            let pagosArray = item.pagos || [];
+            if (!Array.isArray(pagosArray)) {
+                pagosArray = [];
+            }
+            
+            novoPagamentosData[data][funcId] = {
+                pagos: pagosArray,
+                adicional: item.adicional || 0,
+                desconto: item.desconto || 0,
+                descricao: item.descricao || ""
+            };
+        });
+
+        // 🔥 SUBSTITUIR O OBJETO COMPLETO
+        pagamentosData = novoPagamentosData;
+
+        console.log(`✅ ${snapshot.docs.length} registros de pagamentos carregados`);
+        console.log("📊 Pagamentos carregados:", pagamentosData);
+        
+        // Atualizar cache local
+        localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
+        
+        return true;
+
+    } catch (error) {
+        console.error("Erro ao carregar pagamentos:", error);
+        return false;
     }
 }
 
 async function salvarPagamentosFirebase() {
     console.log("🔥 Salvando pagamentos...");
     try {
-
         if (!db) return;
-
-        // 🔥 GARANTE ESTRUTURA CORRETA
-        if (!pagamentosData || typeof pagamentosData !== "object") {
-            console.warn("pagamentosData inválido, recriando...");
-            pagamentosData = {};
-        }
-
-        await db.collection("sistema").doc("pagamentos").set({
-            dados: pagamentosData
+        
+        const batch = db.batch();
+        
+        // Limpar dados antigos
+        const snapshot = await db.collection('pagamentos').get();
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
         });
-
+        
+        // Salvar novos dados
+        for (const [data, funcs] of Object.entries(pagamentosData)) {
+            for (const [funcId, registro] of Object.entries(funcs)) {
+                const docRef = db.collection('pagamentos').doc(`${data}_${funcId}`);
+                
+                // 🔥 GARANTIR QUE pagos É UM ARRAY
+                const pagosArray = Array.isArray(registro.pagos) ? registro.pagos : [];
+                
+                batch.set(docRef, {
+                    data: data,
+                    funcionario_id: parseInt(funcId),
+                    pagos: pagosArray,
+                    adicional: registro.adicional || 0,
+                    desconto: registro.desconto || 0,
+                    descricao: registro.descricao || ""
+                });
+            }
+        }
+        
+        await batch.commit();
         console.log("✅ Pagamentos salvos com sucesso");
-
+        
     } catch (erro) {
         console.error("Erro ao salvar pagamentos:", erro);
     }
@@ -854,6 +916,8 @@ function salvarDescricao(data, funcId, texto) {
 
 // Carregar tela de pagamentos
 async function carregarPagamentos() {
+    console.log("🔄 Carregando tela de pagamentos...");
+    
     await carregarPagamentosFirebase();
 
     const mesInput = document.getElementById("mesPagamento");
@@ -867,6 +931,7 @@ async function carregarPagamentos() {
     const container = document.getElementById("pagamentosContainer");
     const funcionariosAtivos = funcionarios.filter(f => f.status === true);
 
+    if (!container) return;
     if (funcionariosAtivos.length === 0) {
         container.innerHTML = '<div style="text-align:center;padding:40px;">Nenhum funcionário cadastrado</div>';
         return;
@@ -874,24 +939,21 @@ async function carregarPagamentos() {
 
     let diasHTML = '';
     for (let dia = 1; dia <= diasNoMes; dia++) {
-        const diaSemana = new Date(parseInt(ano), parseInt(mes)-1, dia)
-            .toLocaleDateString('pt-BR', { weekday: 'short' });
-
-        diasHTML += `<th style="min-width:70px;text-align:center;">${diaSemana}<br>${dia}</th>`;
+        const diaSemana = new Date(parseInt(ano), parseInt(mes)-1, dia).toLocaleDateString('pt-BR', { weekday: 'short' });
+        diasHTML += `<th style="min-width:100px; background:#0f172a; color:white; padding:8px;">${diaSemana}<br>${dia}</th>`;
     }
 
     let funcionariosHTML = [];
-    let totaisPorFuncionario = [];
+    let totalGeralPago = 0;
+    let totalGeralReceber = 0;
 
     for (const func of funcionariosAtivos) {
-
-        let diasPagos = 0;
         let diasTrabalhados = 0;
-        let valorTotalFunc = 0;
+        let valorTotalReceber = 0;
+        let valorTotalPago = 0;
         let funcionarioDiasHTML = '';
 
         for (let dia = 1; dia <= diasNoMes; dia++) {
-
             const dataStr = `${ano}-${mes}-${String(dia).padStart(2,'0')}`;
             const escala = escalaData[dataStr]?.[func.id];
             const trabalhou = escala && escala.status === 'trabalha';
@@ -901,270 +963,213 @@ async function carregarPagamentos() {
 
             const adicional = Number(dadosPagamento.adicional || 0);
             const desconto = Number(dadosPagamento.desconto || 0);
+            const descricao = dadosPagamento.descricao || "";
 
             const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
             const qtdePagos = pagamentosArr.filter(p => p === true).length;
 
+            // 🔥 CALCULAR VALOR TOTAL DO DIA (COM ADICIONAL/DESCONTO)
+            let valorDia = 0;
             if (trabalhou) {
                 diasTrabalhados++;
-
-                let valorDia = calcularValorDia(func, dataStr);
-                valorDia += adicional;
-                valorDia -= desconto;
-
-                valorTotalFunc += valorDia;
+                
+                // Calcular valor base da diária
+                const horarios = escala.horarios || [];
+                let valorBase = 0;
+                if (horarios.length > 0) {
+                    horarios.forEach(horario => {
+                        if (horario === '07:00 às 15:20' || horario === '15:00 às 23:30') {
+                            valorBase += func.diaria;
+                        } else if (horario === '07:00 às 23:30') {
+                            valorBase += func.diaria * 2;
+                        } else if (horario && horario !== '') {
+                            valorBase += func.diaria;
+                        }
+                    });
+                } else {
+                    valorBase = func.diaria;
+                }
+                
+                // Aplicar adicional e desconto
+                valorDia = valorBase + adicional - desconto;
+                valorDia = Math.max(0, valorDia);
+                valorTotalReceber += valorDia;
             }
 
-            const todosPagos = (
-                numHorarios > 0 &&
-                pagamentosArr.length === numHorarios &&
-                pagamentosArr.every(p => p === true)
-            );
-
-            if (todosPagos) diasPagos++;
+            // Verificar se o dia foi pago (todos os horários)
+            const todosPagos = (numHorarios > 0 && pagamentosArr.length === numHorarios && pagamentosArr.every(p => p === true));
+            
+            // 🔥 SÓ ADICIONAR AO TOTAL PAGO SE TODOS OS HORÁRIOS FOREM PAGOS
+            if (trabalhou && todosPagos) {
+                valorTotalPago += valorDia;
+            }
 
             let botoesHTML = '';
-
             if (trabalhou) {
-
-                botoesHTML = `
-                    <div style="display:flex; flex-direction:column; gap:4px;">
-
-                        ${
-                            todosPagos
-                            ? `<span style="background:#16a34a;color:white;font-size:10px;padding:3px;border-radius:6px;">✅ PAGO</span>`
-                            : `<button onclick="marcarDiaPago('${dataStr}', ${func.id})"
-                                style="background:#f59e0b;color:white;border:none;padding:4px;border-radius:6px;font-size:10px;">
-                                💰 PAGAR (${qtdePagos}/${numHorarios})
-                              </button>`
-                        }
-
-                        <input type="number"
-                            placeholder="Adicional"
-                            value="${dadosPagamento.adicional || ''}"
-                            onchange="salvarAdicional('${dataStr}', ${func.id}, this.value)"
-                            style="font-size:10px;padding:3px;border-radius:4px;border:1px solid #ccc;"
-                        />
-
-                        <input type="number"
-                            placeholder="Desconto"
-                            value="${dadosPagamento.desconto || ''}"
-                            onchange="salvarDesconto('${dataStr}', ${func.id}, this.value)"
-                            style="font-size:10px;padding:3px;border-radius:4px;border:1px solid #ccc;"
-                        />
-
-                        <input type="text"
-                            placeholder="Descrição"
-                            value="${dadosPagamento.descricao || ''}"
-                            onchange="salvarDescricao('${dataStr}', ${func.id}, this.value)"
-                            style="font-size:10px;padding:3px;border-radius:4px;border:1px solid #ccc;"
-                        />
-
-                        ${
-                            todosPagos
-                            ? `<button onclick="desfazerPagamento('${dataStr}', ${func.id})"
-                                style="background:#dc2626;color:white;border:none;padding:3px;border-radius:6px;font-size:9px;">
-                                ↺
-                              </button>`
-                            : ''
-                        }
-
-                    </div>
-                `;
+                if (todosPagos) {
+                    botoesHTML = `
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span style="background:#16a34a;color:white;padding:4px 8px;border-radius:6px;">✅ PAGO - R$ ${valorDia.toFixed(2)}</span>
+                            <button onclick="desfazerPagamento('${dataStr}', ${func.id})" style="background:#dc2626;color:white;border:none;padding:4px;border-radius:6px;">↺ DESFAZER</button>
+                        </div>
+                    `;
+                } else {
+                    botoesHTML = `
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <button onclick="marcarDiaPago('${dataStr}', ${func.id})" style="background:#f59e0b;color:white;border:none;padding:6px;border-radius:6px;">💰 PAGAR (${qtdePagos}/${numHorarios})</button>
+                            <input type="number" placeholder="➕ Adicional" value="${adicional || ''}" onblur="salvarAdicional('${dataStr}', ${func.id}, this.value)" onkeypress="if(event.key==='Enter') salvarAdicional('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:10px;padding:4px;">
+                            <input type="number" placeholder="➖ Desconto" value="${desconto || ''}" onblur="salvarDesconto('${dataStr}', ${func.id}, this.value)" onkeypress="if(event.key==='Enter') salvarDesconto('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:10px;padding:4px;">
+                            <input type="text" placeholder="📝 Descrição" value="${descricao || ''}" onblur="salvarDescricao('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:9px;padding:4px;">
+                        </div>
+                    `;
+                }
             } else {
-                botoesHTML = `<span style="color:#cbd5e1;">—</span>`;
+                botoesHTML = `<span>—</span>`;
             }
 
-            funcionarioDiasHTML += `
-                <td style="text-align:center; background:${todosPagos ? '#dcfce7' : 'white'};">
-                    ${botoesHTML}
-                </td>
-            `;
+            funcionarioDiasHTML += `<td style="text-align:center; background:${todosPagos ? '#dcfce7' : 'white'}; padding:6px;">${botoesHTML}</td>`;
         }
-
-        let totalPago = 0;
-
-        for (let dia = 1; dia <= diasNoMes; dia++) {
-            const dataStr = `${ano}-${mes}-${String(dia).padStart(2,'0')}`;
-            const escala = escalaData[dataStr]?.[func.id];
-            const trabalhou = escala && escala.status === 'trabalha';
-
-            const dados = pagamentosData[dataStr]?.[func.id] || {};
-            const pagos = dados.pagos || [];
-
-            const adicional = Number(dados.adicional || 0);
-            const desconto = Number(dados.desconto || 0);
-
-            const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
-
-            const todosPagos = (
-                numHorarios > 0 &&
-                pagos.length === numHorarios &&
-                pagos.every(p => p === true)
-            );
-
-            if (trabalhou && todosPagos) {
-                let valor = calcularValorDia(func, dataStr);
-                valor += adicional;
-                valor -= desconto;
-
-                totalPago += valor;
-            }
-        }
-
-        totaisPorFuncionario.push({
-            nome: func.nome,
-            diasTrabalhados,
-            diasPagos,
-            totalReceber: valorTotalFunc,
-            totalPago
-        });
 
         funcionariosHTML.push(`
             <tr>
-                <td style="position:sticky; left:0; background:#f8fafc; padding:6px;">
-                    <div style="font-weight:bold;">${func.nome}</div>
-                    <div style="font-size:10px; color:#64748b;">
-                        💰 R$ ${valorTotalFunc.toFixed(2)}
-                    </div>
+                <td style="background:#f8fafc;padding:8px;">
+                    <strong>${func.nome}</strong><br>
+                    💰 Receber: R$ ${valorTotalReceber.toFixed(2)}<br>
+                    ✅ Pago: R$ ${valorTotalPago.toFixed(2)}
                 </td>
-
                 ${funcionarioDiasHTML}
             </tr>
         `);
+        
+        totalGeralReceber += valorTotalReceber;
+        totalGeralPago += valorTotalPago;
     }
 
-    const totalGeralReceber = totaisPorFuncionario.reduce((s,f)=>s+f.totalReceber,0);
-    const totalGeralPago = totaisPorFuncionario.reduce((s,f)=>s+f.totalPago,0);
     const totalGeralPendente = totalGeralReceber - totalGeralPago;
 
     container.innerHTML = `
-        <div style="margin-bottom:10px;">
-            💰 Pago: R$ ${totalGeralPago.toFixed(2)}<br>
-            📊 Total: R$ ${totalGeralReceber.toFixed(2)}<br>
-            📌 Pendente: R$ ${totalGeralPendente.toFixed(2)}
+        <div style="margin-bottom:15px;padding:10px;background:#f1f5f9;border-radius:8px;">
+            <strong>📊 MÊS ${mes}/${ano}</strong><br>
+            💰 Pago: <strong style="color:#16a34a;">R$ ${totalGeralPago.toFixed(2)}</strong><br>
+            📊 Total: <strong>R$ ${totalGeralReceber.toFixed(2)}</strong><br>
+            📌 Pendente: <strong style="color:${totalGeralPendente > 0 ? '#dc2626' : '#16a34a'};">R$ ${totalGeralPendente.toFixed(2)}</strong>
         </div>
-
-        <table style="width:100%;">
-            <thead>
-                <tr>
-                    <th>Funcionário</th>
-                    ${diasHTML}
-                </tr>
-            </thead>
-            <tbody>
-                ${funcionariosHTML.join('')}
-            </tbody>
-        </table>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr style="background:#0f172a;color:white;"><th>Funcionário</th>${diasHTML}</tr></thead>
+                <tbody>${funcionariosHTML.join('')}</tbody>
+            </table>
+        </div>
     `;
+    console.log("✅ Tela atualizada");
 }
-// Marcar um dia específico como pago
-// Marcar um dia específico como pago
+
 async function marcarDiaPago(dataStr, funcId) {
-
-    // 🔹 Garante estrutura base
-    if (!pagamentosData[dataStr]) {
-        pagamentosData[dataStr] = {};
-    }
-
-    // 🔹 Pega escala do dia
+    console.log(`💰 Marcando pagamento: ${funcId} em ${dataStr}`);
+    
+    if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
+    
     const escala = escalaData[dataStr]?.[funcId];
-    const numHorarios = (escala && escala.horarios)
-        ? escala.horarios.length
-        : 1;
+    const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
+    
+    // 🔥 PRESERVAR ADICIONAL E DESCONTO
+    const dadosExistentes = pagamentosData[dataStr][funcId] || {};
+    const adicional = dadosExistentes.adicional || 0;
+    const desconto = dadosExistentes.desconto || 0;
+    const descricao = dadosExistentes.descricao || "";
+    
+    pagamentosData[dataStr][funcId] = {
+        pagos: new Array(numHorarios).fill(true),
+        adicional: adicional,
+        desconto: desconto,
+        descricao: descricao
+    };
+    
+    await salvarPagamentosFirebase();
+    await carregarPagamentos();
+    console.log(`✅ Pagamento registrado - Base: R$ ${escala?.diaria || 0} + Adicional: R$ ${adicional} - Desconto: R$ ${desconto}`);
+}
 
-    // 🔹 Cria estrutura se não existir
+async function desfazerPagamento(dataStr, funcId) {
+    if (!confirm("Desfazer pagamento deste dia?")) return;
+    
+    if (!pagamentosData[dataStr] || !pagamentosData[dataStr][funcId]) {
+        console.log("⚠️ Nenhum pagamento encontrado para desfazer");
+        return;
+    }
+    
+    const escala = escalaData[dataStr]?.[funcId];
+    const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
+    
+    // 🔥 Preservar adicional e desconto
+    const dadosExistentes = pagamentosData[dataStr][funcId];
+    const adicional = dadosExistentes.adicional || 0;
+    const desconto = dadosExistentes.desconto || 0;
+    const descricao = dadosExistentes.descricao || "";
+    
+    // Desfazer pagamentos
+    pagamentosData[dataStr][funcId] = {
+        pagos: new Array(numHorarios).fill(false),
+        adicional: adicional,
+        desconto: desconto,
+        descricao: descricao
+    };
+    
+    await salvarPagamentosFirebase();
+    await carregarPagamentosFirebase();
+    await carregarPagamentos();
+    
+    console.log(`↺ Pagamento desfeito, mas adicional (R$ ${adicional}) e desconto (R$ ${desconto}) mantidos`);
+}
+
+function salvarAdicional(dataStr, funcId, valor) {
+    if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
     if (!pagamentosData[dataStr][funcId]) {
         pagamentosData[dataStr][funcId] = {
-            pagos: new Array(numHorarios).fill(false),
+            pagos: [],
             adicional: 0,
             desconto: 0,
             descricao: ""
         };
     }
-
-    // 🔹 Garante que 'pagos' existe corretamente
-    if (!Array.isArray(pagamentosData[dataStr][funcId].pagos)) {
-        pagamentosData[dataStr][funcId].pagos =
-            new Array(numHorarios).fill(false);
-    }
-
-    // 🔥 MARCA TODOS COMO PAGOS
-    pagamentosData[dataStr][funcId].pagos =
-        new Array(numHorarios).fill(true);
-
-    // 🔹 Salva no Firebase
-    await salvarPagamentosFirebase();
-
-    // 🔹 Recarrega tela
+    
+    pagamentosData[dataStr][funcId].adicional = parseFloat(valor) || 0;
+    salvarPagamentosFirebase();
     carregarPagamentos();
-
-    console.log(
-        `✅ Pagamento registrado: Funcionário ${funcId} em ${dataStr} (${numHorarios} horário(s))`
-    );
+    console.log(`➕ Adicional de R$ ${valor} salvo para ${funcId} em ${dataStr}`);
 }
 
-async function desfazerPagamento(dataStr, funcId) {
-    if (!confirm("Desfazer pagamento deste dia?")) return;
-
-    if (!pagamentosData[dataStr] || !pagamentosData[dataStr][funcId]) {
-        return;
+function salvarDesconto(dataStr, funcId, valor) {
+    if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
+    if (!pagamentosData[dataStr][funcId]) {
+        pagamentosData[dataStr][funcId] = {
+            pagos: [],
+            adicional: 0,
+            desconto: 0,
+            descricao: ""
+        };
     }
-
-    const escala = escalaData[dataStr]?.[funcId];
-    const numHorarios = (escala && escala.horarios)
-        ? escala.horarios.length
-        : 1;
-
-    // 🔥 GARANTE ESTRUTURA CORRETA
-    if (!pagamentosData[dataStr][funcId].pagos) {
-        pagamentosData[dataStr][funcId].pagos = new Array(numHorarios).fill(false);
-    }
-
-    // 🔥 DESFAZER PAGAMENTO (tudo FALSE)
-    const registro = pagamentosData[dataStr]?.[funcId];
-if (!registro) return;
-
-// 🔥 converte formato antigo (array → objeto)
-if (Array.isArray(registro)) {
-    pagamentosData[dataStr][funcId] = {
-        pagos: registro,
-        adicional: 0,
-        desconto: 0,
-        descricao: ""
-    };
-}
-
-// 🔥 garante que existe .pagos
-if (!Array.isArray(pagamentosData[dataStr][funcId].pagos)) {
-    const escala = escalaData[dataStr]?.[funcId];
-    const numHorarios = (escala && escala.horarios)
-        ? escala.horarios.length
-        : 1;
-
-    pagamentosData[dataStr][funcId].pagos = new Array(numHorarios).fill(false);
-}
-
-// 🔥 AGORA SIM pode usar map com segurança
-pagamentosData[dataStr][funcId].pagos =
-    pagamentosData[dataStr][funcId].pagos.map(() => false);
-
-    // 🔥 Se todos forem false, remove o funcionário daquele dia
-    const todosFalse = pagamentosData[dataStr][funcId].pagos.every(p => p === false);
-
-    if (todosFalse) {
-        delete pagamentosData[dataStr][funcId];
-    }
-
-    // 🔥 Se o dia ficar vazio, remove o dia
-    if (Object.keys(pagamentosData[dataStr]).length === 0) {
-        delete pagamentosData[dataStr];
-    }
-
-    await salvarPagamentosFirebase();
+    
+    pagamentosData[dataStr][funcId].desconto = parseFloat(valor) || 0;
+    salvarPagamentosFirebase();
     carregarPagamentos();
+    console.log(`➖ Desconto de R$ ${valor} salvo para ${funcId} em ${dataStr}`);
+}
 
-    console.log(`↺ Pagamento desfeito: Funcionário ${funcId} em ${dataStr}`);
+function salvarDescricao(dataStr, funcId, texto) {
+    if (!pagamentosData[dataStr]) pagamentosData[dataStr] = {};
+    if (!pagamentosData[dataStr][funcId]) {
+        pagamentosData[dataStr][funcId] = {
+            pagos: [],
+            adicional: 0,
+            desconto: 0,
+            descricao: ""
+        };
+    }
+    
+    pagamentosData[dataStr][funcId].descricao = texto;
+    salvarPagamentosFirebase();
+    console.log(`📝 Descrição salva para ${funcId} em ${dataStr}`);
 }
 
 // Marcar todos os dias do mês como pagos para todos os funcionários
