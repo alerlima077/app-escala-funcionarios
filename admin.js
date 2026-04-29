@@ -1004,30 +1004,61 @@ async function carregarPagamentos() {
                 valorTotalPago += valorDia;
             }
 
+            // 🔥 CAMPOS EXTRAS (SEMPRE VISÍVEIS)
+            const camposExtras = `
+                <div style="display:flex; flex-direction:column; gap:4px; margin-top:5px;">
+                    <input type="number" 
+                        placeholder="➕ Adicional" 
+                        value="${adicional || ''}"
+                        onblur="salvarAdicional('${dataStr}', ${func.id}, this.value)"
+                        onkeypress="if(event.key==='Enter') salvarAdicional('${dataStr}', ${func.id}, this.value)"
+                        style="width:100px; font-size:10px; padding:4px; border-radius:4px; border:1px solid #ccc; text-align:center;">
+                    
+                    <input type="number" 
+                        placeholder="➖ Desconto" 
+                        value="${desconto || ''}"
+                        onblur="salvarDesconto('${dataStr}', ${func.id}, this.value)"
+                        onkeypress="if(event.key==='Enter') salvarDesconto('${dataStr}', ${func.id}, this.value)"
+                        style="width:100px; font-size:10px; padding:4px; border-radius:4px; border:1px solid #ccc; text-align:center;">
+                    
+                    <input type="text" 
+                        placeholder="📝 Descrição" 
+                        value="${descricao || ''}"
+                        onblur="salvarDescricao('${dataStr}', ${func.id}, this.value)"
+                        onkeypress="if(event.key==='Enter') salvarDescricao('${dataStr}', ${func.id}, this.value)"
+                        style="width:100px; font-size:9px; padding:4px; border-radius:4px; border:1px solid #ccc; text-align:center;">
+                </div>
+            `;
+
             let botoesHTML = '';
             if (trabalhou) {
                 if (todosPagos) {
                     botoesHTML = `
-                        <div style="display:flex; flex-direction:column; gap:4px;">
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                             <span style="background:#16a34a;color:white;padding:4px 8px;border-radius:6px;">✅ PAGO - R$ ${valorDia.toFixed(2)}</span>
-                            <button onclick="desfazerPagamento('${dataStr}', ${func.id})" style="background:#dc2626;color:white;border:none;padding:4px;border-radius:6px;">↺ DESFAZER</button>
+                            <button onclick="desfazerPagamento('${dataStr}', ${func.id})" 
+                                style="background:#dc2626;color:white;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;">
+                                ↺ DESFAZER
+                            </button>
+                            ${camposExtras}
                         </div>
                     `;
                 } else {
                     botoesHTML = `
-                        <div style="display:flex; flex-direction:column; gap:4px;">
-                            <button onclick="marcarDiaPago('${dataStr}', ${func.id})" style="background:#f59e0b;color:white;border:none;padding:6px;border-radius:6px;">💰 PAGAR (${qtdePagos}/${numHorarios})</button>
-                            <input type="number" placeholder="➕ Adicional" value="${adicional || ''}" onblur="salvarAdicional('${dataStr}', ${func.id}, this.value)" onkeypress="if(event.key==='Enter') salvarAdicional('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:10px;padding:4px;">
-                            <input type="number" placeholder="➖ Desconto" value="${desconto || ''}" onblur="salvarDesconto('${dataStr}', ${func.id}, this.value)" onkeypress="if(event.key==='Enter') salvarDesconto('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:10px;padding:4px;">
-                            <input type="text" placeholder="📝 Descrição" value="${descricao || ''}" onblur="salvarDescricao('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:9px;padding:4px;">
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <button onclick="marcarDiaPago('${dataStr}', ${func.id})" 
+                                style="background:#f59e0b;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;">
+                                💰 PAGAR (${qtdePagos}/${numHorarios})
+                            </button>
+                            ${camposExtras}
                         </div>
                     `;
                 }
             } else {
-                botoesHTML = `<span>—</span>`;
+                botoesHTML = `<span style="color:#cbd5e1;">—</span>`;
             }
 
-            funcionarioDiasHTML += `<td style="text-align:center; background:${todosPagos ? '#dcfce7' : 'white'}; padding:6px;">${botoesHTML}</td>`;
+            funcionarioDiasHTML += `<td style="text-align:center; vertical-align:top; background:${todosPagos ? '#dcfce7' : 'white'}; padding:6px;">${botoesHTML}</td>`;
         }
 
         funcionariosHTML.push(`
@@ -1061,7 +1092,7 @@ async function carregarPagamentos() {
             </table>
         </div>
     `;
-    console.log("✅ Tela atualizada");
+    console.log("✅ Tela atualizada com campos sempre visíveis");
 }
 
 async function marcarDiaPago(dataStr, funcId) {
