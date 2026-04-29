@@ -970,12 +970,13 @@ async function carregarPagamentos() {
 
             // 🔥 CALCULAR VALOR TOTAL DO DIA (COM ADICIONAL/DESCONTO)
             let valorDia = 0;
+            let valorBase = 0;
+            
             if (trabalhou) {
                 diasTrabalhados++;
                 
                 // Calcular valor base da diária
                 const horarios = escala.horarios || [];
-                let valorBase = 0;
                 if (horarios.length > 0) {
                     horarios.forEach(horario => {
                         if (horario === '07:00 às 15:20' || horario === '15:00 às 23:30') {
@@ -996,10 +997,10 @@ async function carregarPagamentos() {
                 valorTotalReceber += valorDia;
             }
 
-            // Verificar se o dia foi pago (todos os horários)
+            // 🔥 VERIFICAR SE O DIA FOI PAGO (todos os horários)
             const todosPagos = (numHorarios > 0 && pagamentosArr.length === numHorarios && pagamentosArr.every(p => p === true));
             
-            // 🔥 SÓ ADICIONAR AO TOTAL PAGO SE TODOS OS HORÁRIOS FOREM PAGOS
+            // 🔥 CALCULAR VALOR PAGO (COM ADICIONAL/DESCONTO)
             if (trabalhou && todosPagos) {
                 valorTotalPago += valorDia;
             }
@@ -1061,12 +1062,13 @@ async function carregarPagamentos() {
             funcionarioDiasHTML += `<td style="text-align:center; vertical-align:top; background:${todosPagos ? '#dcfce7' : 'white'}; padding:6px;">${botoesHTML}</td>`;
         }
 
+        // 🔥 GARANTIR QUE O VALOR PAGO É EXIBIDO CORRETAMENTE
         funcionariosHTML.push(`
             <tr>
                 <td style="background:#f8fafc;padding:8px;">
                     <strong>${func.nome}</strong><br>
-                    💰 Receber: R$ ${valorTotalReceber.toFixed(2)}<br>
-                    ✅ Pago: R$ ${valorTotalPago.toFixed(2)}
+                    💰 Receber: <strong>R$ ${valorTotalReceber.toFixed(2)}</strong><br>
+                    ✅ Pago: <strong style="color:#16a34a;">R$ ${valorTotalPago.toFixed(2)}</strong>
                 </td>
                 ${funcionarioDiasHTML}
             </tr>
@@ -1087,12 +1089,12 @@ async function carregarPagamentos() {
         </div>
         <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse;">
-                <thead><tr style="background:#0f172a;color:white;"><th>Funcionário</th>${diasHTML}</tr></thead>
+                <thead><tr style="background:#0f172a;color:white;"><th>Funcionário</th>${diasHTML}<tr></thead>
                 <tbody>${funcionariosHTML.join('')}</tbody>
             </table>
         </div>
     `;
-    console.log("✅ Tela atualizada com campos sempre visíveis");
+    console.log(`✅ Tela atualizada - Total Pago: R$ ${totalGeralPago.toFixed(2)}`);
 }
 
 async function marcarDiaPago(dataStr, funcId) {
@@ -1109,6 +1111,25 @@ async function marcarDiaPago(dataStr, funcId) {
     const desconto = dadosExistentes.desconto || 0;
     const descricao = dadosExistentes.descricao || "";
     
+    // Calcular valor base
+    const horarios = escala?.horarios || [];
+    let valorBase = 0;
+    if (horarios.length > 0) {
+        horarios.forEach(horario => {
+            if (horario === '07:00 às 15:20' || horario === '15:00 às 23:30') {
+                valorBase += (escala ? 90 : 0); // Valor da diária do funcionário
+            } else if (horario === '07:00 às 23:30') {
+                valorBase += (escala ? 180 : 0);
+            } else {
+                valorBase += (escala ? 90 : 0);
+            }
+        });
+    } else {
+        valorBase = escala ? 90 : 0;
+    }
+    
+    const valorTotal = valorBase + adicional - desconto;
+    
     pagamentosData[dataStr][funcId] = {
         pagos: new Array(numHorarios).fill(true),
         adicional: adicional,
@@ -1118,7 +1139,8 @@ async function marcarDiaPago(dataStr, funcId) {
     
     await salvarPagamentosFirebase();
     await carregarPagamentos();
-    console.log(`✅ Pagamento registrado - Base: R$ ${escala?.diaria || 0} + Adicional: R$ ${adicional} - Desconto: R$ ${desconto}`);
+    
+    console.log(`✅ Pagamento registrado - Valor total: R$ ${valorTotal.toFixed(2)} (Base: R$ ${valorBase} + Adicional: R$ ${adicional} - Desconto: R$ ${desconto})`);
 }
 
 async function desfazerPagamento(dataStr, funcId) {

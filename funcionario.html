@@ -297,6 +297,43 @@
             margin-top: 6px;
         }
 
+        /* Tooltip para mostrar valor no hover */
+        .dia.has-tooltip {
+            position: relative;
+        }
+
+        .dia.has-tooltip:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        /* Estilo para dias pagos */
+        .dia-pago {
+            background: #dcfce7;
+            border: 1px solid #16a34a;
+        }
+
+        /* Dia trabalhado mas NÃO PAGO */
+        .dia-nao-pago {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            opacity: 0.8;
+        }
+
+        .dia-nao-pago:hover {
+            opacity: 1;
+}
+
     </style>
 </head>
 <body>

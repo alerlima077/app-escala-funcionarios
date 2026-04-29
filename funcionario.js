@@ -219,6 +219,7 @@ function calcularResumoMes() {
     let diasTrabalhados = 0;
     let diasFolga = 0;
     let diasPagos = 0;
+    let valorPago = 0;
     
     for (let dia = 1; dia <= diasNoMes; dia++) {
         const dataStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
@@ -226,45 +227,46 @@ function calcularResumoMes() {
         
         if (escala && escala.status === 'trabalha') {
             diasTrabalhados++;
-            const dadosPagamento = normalizarPagamento(
-                pagamentosData[dataStr]?.[funcionarioAtual.id],
-                dataStr,
-                funcionarioAtual.id
-            );
-
-            const pagamentosArr = dadosPagamento.pagos;
-            const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
-            if (foiPago) diasPagos++;
+            
+            const pagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
+            const pagos = pagamento.pagos || [];
+            const adicional = Number(pagamento.adicional || 0);
+            const desconto = Number(pagamento.desconto || 0);
+            
+            const numHorarios = escala.horarios ? escala.horarios.length : 1;
+            // 🔥 VERIFICAR SE TODOS OS HORÁRIOS FORAM PAGOS
+            const foiPago = pagos.length === numHorarios && pagos.every(p => p === true);
+            
+            if (foiPago) {
+                diasPagos++;
+                
+                const horarios = escala.horarios || [];
+                let valorBase = 0;
+                if (horarios.length > 0) {
+                    horarios.forEach(horario => {
+                        if (horario === '07:00 às 15:20' || horario === '15:00 às 23:30') {
+                            valorBase += funcionarioAtual.diaria;
+                        } else if (horario === '07:00 às 23:30') {
+                            valorBase += funcionarioAtual.diaria * 2;
+                        } else if (horario && horario !== '') {
+                            valorBase += funcionarioAtual.diaria;
+                        }
+                    });
+                } else {
+                    valorBase = funcionarioAtual.diaria;
+                }
+                
+                let valorDia = valorBase + adicional - desconto;
+                valorDia = Math.max(0, valorDia);
+                valorPago += valorDia;
+            }
         } else if (escala && escala.status === 'folga') {
             diasFolga++;
         }
     }
     
-    let valorPago = 0;
-
-    for (let dia = 1; dia <= diasNoMes; dia++) {
-
-        const dataStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-        const escala = escalaData[dataStr]?.[funcionarioAtual.id];
-
-        if (escala && escala.status === 'trabalha') {
-
-            const dados = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
-            const pagos = dados.pagos || [];
-
-            const foiPago = pagos.length > 0 && pagos.every(p => p === true);
-
-            if (foiPago) {
-                let valorDia = funcionarioAtual.diaria;
-
-                valorDia += Number(dados.adicional || 0);
-                valorDia -= Number(dados.desconto || 0);
-
-                valorPago += valorDia;
-            }
-        }
-    }
-        
+    console.log(`📊 ${funcionarioAtual.nome}: ${diasPagos} dias pagos, valor total: R$ ${valorPago.toFixed(2)}`);
+    
     return {
         diasTrabalhados,
         diasFolga,
@@ -307,28 +309,58 @@ function renderizarCalendario() {
         let statusIcon = '';
         let horario = '';
         let pagoIcon = '';
+        let valorTexto = '';
         
         const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
-        const dadosPagamento = normalizarPagamento(
-            pagamentosData[dataStr]?.[funcionarioAtual.id],
-            dataStr,
-            funcionarioAtual.id
-        );
-
-        const pagamentosArr = dadosPagamento.pagos;
-        const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
-        if (foiPago) {
-            statusClass += ' dia-pago';
+        
+        // 🔥 BUSCAR PAGAMENTO
+        const pagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
+        const pagamentosArr = pagamento.pagos || [];
+        const adicional = Number(pagamento.adicional || 0);
+        const desconto = Number(pagamento.desconto || 0);
+        
+        const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
+        // 🔥 VERIFICAR SE TODOS OS HORÁRIOS ESTÃO PAGOS
+        const foiPago = pagamentosArr.length === numHorarios && pagamentosArr.every(p => p === true);
+        
+        // 🔥 CALCULAR VALOR DO DIA (se pago)
+        let valorDia = 0;
+        if (escala && escala.status === 'trabalha') {
+            const horarios = escala.horarios || [];
+            let valorBase = 0;
+            if (horarios.length > 0) {
+                horarios.forEach(h => {
+                    if (h === '07:00 às 15:20' || h === '15:00 às 23:30') {
+                        valorBase += funcionarioAtual.diaria;
+                    } else if (h === '07:00 às 23:30') {
+                        valorBase += funcionarioAtual.diaria * 2;
+                    } else if (h && h !== '') {
+                        valorBase += funcionarioAtual.diaria;
+                    }
+                });
+            } else {
+                valorBase = funcionarioAtual.diaria;
+            }
+            valorDia = valorBase + adicional - desconto;
+            valorDia = Math.max(0, valorDia);
         }
         
+        // Definir classes e ícones
         if (escala) {
             if (escala.status === 'trabalha') {
                 statusClass = 'dia-trabalha';
                 statusIcon = '✅';
                 const horarios = escala.horarios || [];
-                horario = horarios.join('<br>');
+                horario = horarios.length > 0 ? horarios[0] : '';
+                
+                // 🔥 SÓ MOSTRAR 💰 SE O DIA FOI PAGO
                 if (foiPago) {
                     pagoIcon = '💰';
+                    statusClass += ' dia-pago';
+                    valorTexto = `<div class="dia-indicador" style="font-size:0.6rem; color:#16a34a;">R$ ${valorDia.toFixed(2)}</div>`;
+                } else {
+                    // Dia trabalhado mas NÃO PAGO
+                    statusClass += ' dia-nao-pago';
                 }
             } else if (escala.status === 'folga') {
                 statusClass = 'dia-folga';
@@ -344,7 +376,8 @@ function renderizarCalendario() {
             <div class="dia ${statusClass}" onclick="verDetalhes('${dataStr}', ${dia})">
                 <div class="dia-numero">${dia}${isHoje ? '📍' : ''}</div>
                 <div class="dia-indicador">${statusIcon} ${pagoIcon}</div>
-                ${horario ? `<div class="dia-indicador">${horario}</div>` : ''}
+                ${horario ? `<div class="dia-indicador" style="font-size:0.6rem;">${horario.substring(0, 8)}</div>` : ''}
+                ${valorTexto}
             </div>
         `;
     }
@@ -358,46 +391,55 @@ function verDetalhes(dataStr, diaNum) {
     const [ano, mes, dia] = dataStr.split('-');
     const dataFormatada = `${dia}/${mes}/${ano}`;
     
-    const dadosPagamento = normalizarPagamento(
-        pagamentosData[dataStr]?.[funcionarioAtual.id],
-        dataStr,
-        funcionarioAtual.id
-    );
-
-    const pagamentosArr = dadosPagamento.pagos;
-    const foiPago = pagamentosArr.length > 0 && pagamentosArr.every(p => p === true);
-
-    let valorInfo = '';
-
-    if (escala && escala.status === 'trabalha' && foiPago) {
-        let valor = funcionarioAtual.diaria;
-        valor += Number(dadosPagamento.adicional || 0);
-        valor -= Number(dadosPagamento.desconto || 0);
-
-        valorInfo = `<div style="margin-top:10px;font-weight:bold;">💰 R$ ${valor.toFixed(2)}</div>`;
-    }
+    // 🔥 BUSCAR DADOS DE PAGAMENTO
+    const pagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
+    const pagos = pagamento.pagos || [];
+    const adicional = Number(pagamento.adicional || 0);
+    const desconto = Number(pagamento.desconto || 0);
+    
+    const numHorarios = escala?.horarios?.length || 1;
+    const foiPago = pagos.length === numHorarios && pagos.every(p => p === true);
     
     let statusText = '';
     let statusIcon = '';
     let horario = '';
     let pagamentoText = '';
     let pagamentoIcon = '';
+    let valorInfo = '';
     
     if (escala && escala.status === 'trabalha') {
         statusText = 'Dia de Trabalho';
         statusIcon = '✅';
         const horarios = escala.horarios || [];
-
-        horario = horarios.length > 0 
-            ? horarios.join('<br>')
-            : 'Horário não definido';
+        horario = horarios.length > 0 ? horarios.join('<br>') : 'Horário não definido';
+        
+        // 🔥 CALCULAR VALOR DO DIA COM ADICIONAL/DESCONTO
+        let valorBase = 0;
+        if (horarios.length > 0) {
+            horarios.forEach(h => {
+                if (h === '07:00 às 15:20' || h === '15:00 às 23:30') {
+                    valorBase += funcionarioAtual.diaria;
+                } else if (h === '07:00 às 23:30') {
+                    valorBase += funcionarioAtual.diaria * 2;
+                } else if (h && h !== '') {
+                    valorBase += funcionarioAtual.diaria;
+                }
+            });
+        } else {
+            valorBase = funcionarioAtual.diaria;
+        }
+        
+        let valorDia = valorBase + adicional - desconto;
+        valorDia = Math.max(0, valorDia);
         
         if (foiPago) {
             pagamentoText = 'Pagamento Confirmado';
             pagamentoIcon = '💰';
+            valorInfo = `<div style="margin-top:10px;font-weight:bold;">💰 R$ ${valorDia.toFixed(2)}</div>`;
         } else {
             pagamentoText = 'Aguardando Pagamento';
             pagamentoIcon = '⏳';
+            valorInfo = `<div style="margin-top:10px;font-size:11px;color:#64748b;">💰 Valor a receber: R$ ${valorDia.toFixed(2)}</div>`;
         }
     } else if (escala && escala.status === 'folga') {
         statusText = 'Dia de Folga';
@@ -428,7 +470,6 @@ function verDetalhes(dataStr, diaNum) {
             </div>
         `;
         document.body.appendChild(modal);
-        
         modal.querySelector('.close-modal').onclick = () => {
             modal.style.display = 'none';
         };
@@ -436,7 +477,7 @@ function verDetalhes(dataStr, diaNum) {
     
     modal.querySelector('.modal-data').innerHTML = `📅 ${dataFormatada}`;
     modal.querySelector('.modal-status').innerHTML = `${statusIcon} ${statusText}`;
-    modal.querySelector('.modal-horario').innerHTML = `⏰ ${horario}`;
+    modal.querySelector('.modal-horario').innerHTML = `<span style="white-space: pre-line;">⏰ ${horario}</span>`;
     
     const pagamentoDiv = modal.querySelector('.modal-pagamento');
     pagamentoDiv.innerHTML = `${pagamentoIcon} ${pagamentoText} ${valorInfo}`;
