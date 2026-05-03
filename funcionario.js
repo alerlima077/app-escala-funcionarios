@@ -424,8 +424,20 @@ function verDetalhes(dataStr, diaNum) {
     if (escala && escala.status === 'trabalha') {
         statusText = 'Dia de Trabalho';
         statusIcon = '✅';
+        
+        // 🔥 CORREÇÃO: Exibir o horário definido pelo admin
         const horarios = escala.horarios || [];
-        horario = horarios.length > 0 ? horarios.join('<br>') : 'Horário não definido';
+        if (horarios.length > 0) {
+            // Exibir todos os horários formatados
+            horario = horarios.map(h => {
+                if (h === '07:00 às 15:20') return '🌅 07:00 às 15:20';
+                if (h === '15:00 às 23:30') return '🌙 15:00 às 23:30';
+                if (h === '07:00 às 23:30') return '🔄 07:00 às 23:30';
+                return h;
+            }).join('<br>');
+        } else {
+            horario = 'Horário não definido pelo administrador';
+        }
         
         // 🔥 CALCULAR VALOR DO DIA COM ADICIONAL/DESCONTO
         let valorBase = 0;
