@@ -748,6 +748,14 @@
                 <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
                     <input type="date" id="dataInicio" style="flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1;">
                     <button class="btn-primary" onclick="carregarSemana()">📆 Carregar Semana</button>
+                    <!-- 🔥 FILTRO DE SETOR - COLE AQUI 🔥 -->
+                    <select id="filtroSetor" onchange="carregarSemana()" style="padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                        <option value="todos">📋 Todos os Setores</option>
+                        <option value="cozinha">🍳 Cozinha</option>
+                        <option value="frente">🍽️ Frente</option>
+                        <option value="casarao">🏰 Casarão</option>
+                    </select>
+                    <!-- 🔥 FIM DO FILTRO DE SETOR 🔥 -->
                 </div>
                 
                 <div class="escala-table-container">
@@ -776,6 +784,13 @@
                 <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
                     <input type="month" id="mesPagamento" style="padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1;">
                     <button class="btn-primary" onclick="carregarPagamentos()">📆 Carregar Mês</button>
+                    <!-- 🔥 FILTRO DE SETOR NOS PAGAMENTOS -->
+                    <select id="filtroSetorPagamento" onchange="carregarPagamentos()" style="padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                        <option value="todos">📋 Todos os Setores</option>
+                        <option value="cozinha">🍳 Cozinha</option>
+                        <option value="frente">🍽️ Frente</option>
+                        <option value="casarao">🏰 Casarão</option>
+                    </select>
                     <button class="btn-primary" onclick="marcarTodosPagos()" style="background: #16a34a;">✅ Marcar Todos Pagos</button>
                     <button onclick="desfazerTodosPagamentos()" style="background: #dc2626; color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer;">
                         🔄 Desfazer Todos
@@ -808,6 +823,16 @@
                     <label>Diária (R$):</label>
                     <input type="number" id="diaria" step="0.01" required>
                 </div>
+                <!-- 🔥 CAMPOS DE SETOR - COLE AQUI 🔥 -->
+                <div class="form-group">
+                    <label>Setor:</label>
+                    <select id="setor" required style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                        <option value="cozinha">🍳 Cozinha</option>
+                        <option value="frente">🍽️ Frente</option>
+                        <option value="casarao">🏰 Casarão</option>
+                    </select>
+                </div>
+                <!-- 🔥 FIM DOS CAMPOS DE SETOR 🔥 -->
                 <div class="form-group">
                     <label>
                         <input type="checkbox" id="status" checked> Ativo

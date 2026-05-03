@@ -320,7 +320,6 @@ function carregarSemana() {
     let dataInicio = document.getElementById("dataInicio").value;
     
     if (!dataInicio) {
-        // Padrão: data atual
         const hoje = new Date();
         const ano = hoje.getFullYear();
         const mes = String(hoje.getMonth() + 1).padStart(2, '0');
@@ -329,27 +328,19 @@ function carregarSemana() {
         document.getElementById("dataInicio").value = dataInicio;
     }
     
-    // Gerar os 7 dias a partir da data selecionada (sem problema de fuso)
     const dias = [];
     const [ano, mes, dia] = dataInicio.split('-').map(Number);
     
     for (let i = 0; i < 7; i++) {
-        // Criar data no fuso local para evitar o problema do dia anterior
         const diaAtual = new Date(ano, mes - 1, dia + i);
-        const anoAtual = diaAtual.getFullYear();
-        const mesAtual = String(diaAtual.getMonth() + 1).padStart(2, '0');
-        const diaNumAtual = String(diaAtual.getDate()).padStart(2, '0');
-        const dataStr = `${anoAtual}-${mesAtual}-${diaNumAtual}`;
-        
+        const dataStr = `${diaAtual.getFullYear()}-${String(diaAtual.getMonth() + 1).padStart(2, '0')}-${String(diaAtual.getDate()).padStart(2, '0')}`;
         const nomeDia = diaAtual.toLocaleDateString('pt-BR', { weekday: 'short' });
-        const diaNum = diaAtual.getDate();
-        const mesNum = diaAtual.getMonth() + 1;
         
         dias.push({ 
             data: dataStr, 
             nome: nomeDia, 
-            diaNum: diaNum,
-            mesNum: mesNum
+            diaNum: diaAtual.getDate(),
+            mesNum: diaAtual.getMonth() + 1
         });
     }
     
@@ -363,11 +354,26 @@ function renderizarTabelaEscala() {
     
     if (!thead || !tbody) return;
     
-    const funcionariosAtivos = funcionarios.filter(f => f.status === true);
+    // 🔥 APLICAR FILTRO POR SETOR
+    const filtroSetor = document.getElementById("filtroSetor")?.value || "todos";
+    
+    let funcionariosAtivos = funcionarios.filter(f => f.status === true);
+    
+    if (filtroSetor !== "todos") {
+        funcionariosAtivos = funcionariosAtivos.filter(f => f.setor === filtroSetor);
+    }
+    
+    // Se não há funcionários no setor selecionado
+    if (funcionariosAtivos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${semanaAtual.length + 1}" style="text-align:center; padding:40px;">
+            ⚠️ Nenhum funcionário encontrado no setor ${filtroSetor === 'cozinha' ? '🍳 Cozinha' : filtroSetor === 'frente' ? '🍽️ Frente' : '🏰 Casarão'}
+        </td></tr>`;
+        return;
+    }
     
     // Cabeçalho
     thead.innerHTML = `
-        <tr>
+        <table>
             <th style="min-width: 150px; position: sticky; left: 0; background: #0f172a; z-index: 1;">Funcionário</th>
             ${semanaAtual.map(dia => `<th style="min-width: 160px; text-align: center;">${dia.nome}<br>${dia.diaNum}/${String(dia.mesNum).padStart(2,'0')}</th>`).join('')}
         </tr>
@@ -408,7 +414,7 @@ function renderizarTabelaEscala() {
                          </td>
                     `;
                 }).join('')}
-            </table>
+             </tr>
         `;
     }).join('');
     
@@ -916,7 +922,13 @@ async function carregarPagamentos() {
     const [ano, mes] = mesInput.value.split('-');
     const diasNoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
     const container = document.getElementById("pagamentosContainer");
-    const funcionariosAtivos = funcionarios.filter(f => f.status === true);
+    // 🔥 FILTRO POR SETOR
+    const filtroSetor = document.getElementById("filtroSetorPagamento")?.value || "todos";
+
+    let funcionariosAtivos = funcionarios.filter(f => f.status === true);
+    if (filtroSetor !== "todos") {
+        funcionariosAtivos = funcionariosAtivos.filter(f => f.setor === filtroSetor);
+    }
 
     if (!container) return;
     if (funcionariosAtivos.length === 0) {
@@ -955,15 +967,12 @@ async function carregarPagamentos() {
             const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
             const qtdePagos = pagamentosArr.filter(p => p === true).length;
 
-            // 🔥 CALCULAR VALOR TOTAL DO DIA (COM ADICIONAL/DESCONTO)
             let valorDia = 0;
-            let valorBase = 0;
-            
             if (trabalhou) {
                 diasTrabalhados++;
                 
-                // Calcular valor base da diária
                 const horarios = escala.horarios || [];
+                let valorBase = 0;
                 if (horarios.length > 0) {
                     horarios.forEach(horario => {
                         if (horario === '07:00 às 15:20' || horario === '15:00 às 23:30') {
@@ -978,45 +987,16 @@ async function carregarPagamentos() {
                     valorBase = func.diaria;
                 }
                 
-                // Aplicar adicional e desconto
                 valorDia = valorBase + adicional - desconto;
                 valorDia = Math.max(0, valorDia);
                 valorTotalReceber += valorDia;
             }
 
-            // 🔥 VERIFICAR SE O DIA FOI PAGO (todos os horários)
             const todosPagos = (numHorarios > 0 && pagamentosArr.length === numHorarios && pagamentosArr.every(p => p === true));
             
-            // 🔥 CALCULAR VALOR PAGO (COM ADICIONAL/DESCONTO)
             if (trabalhou && todosPagos) {
                 valorTotalPago += valorDia;
             }
-
-            // 🔥 CAMPOS EXTRAS (SEMPRE VISÍVEIS)
-            const camposExtras = `
-                <div style="display:flex; flex-direction:column; gap:4px; margin-top:5px;">
-                    <input type="number" 
-                        placeholder="➕ Adicional" 
-                        value="${adicional || ''}"
-                        onblur="salvarAdicional('${dataStr}', ${func.id}, this.value)"
-                        onkeypress="if(event.key==='Enter') salvarAdicional('${dataStr}', ${func.id}, this.value)"
-                        style="width:100px; font-size:10px; padding:4px; border-radius:4px; border:1px solid #ccc; text-align:center;">
-                    
-                    <input type="number" 
-                        placeholder="➖ Desconto" 
-                        value="${desconto || ''}"
-                        onblur="salvarDesconto('${dataStr}', ${func.id}, this.value)"
-                        onkeypress="if(event.key==='Enter') salvarDesconto('${dataStr}', ${func.id}, this.value)"
-                        style="width:100px; font-size:10px; padding:4px; border-radius:4px; border:1px solid #ccc; text-align:center;">
-                    
-                    <input type="text" 
-                        placeholder="📝 Descrição" 
-                        value="${descricao || ''}"
-                        onblur="salvarDescricao('${dataStr}', ${func.id}, this.value)"
-                        onkeypress="if(event.key==='Enter') salvarDescricao('${dataStr}', ${func.id}, this.value)"
-                        style="width:100px; font-size:9px; padding:4px; border-radius:4px; border:1px solid #ccc; text-align:center;">
-                </div>
-            `;
 
             let botoesHTML = '';
             if (trabalhou) {
@@ -1024,21 +1004,16 @@ async function carregarPagamentos() {
                     botoesHTML = `
                         <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
                             <span style="background:#16a34a;color:white;padding:4px 8px;border-radius:6px;">✅ PAGO - R$ ${valorDia.toFixed(2)}</span>
-                            <button onclick="desfazerPagamento('${dataStr}', ${func.id})" 
-                                style="background:#dc2626;color:white;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;">
-                                ↺ DESFAZER
-                            </button>
-                            ${camposExtras}
+                            <button onclick="desfazerPagamento('${dataStr}', ${func.id})" style="background:#dc2626;color:white;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;">↺ DESFAZER</button>
                         </div>
                     `;
                 } else {
                     botoesHTML = `
                         <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                            <button onclick="marcarDiaPago('${dataStr}', ${func.id})" 
-                                style="background:#f59e0b;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;">
-                                💰 PAGAR (${qtdePagos}/${numHorarios})
-                            </button>
-                            ${camposExtras}
+                            <button onclick="marcarDiaPago('${dataStr}', ${func.id})" style="background:#f59e0b;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;">💰 PAGAR (${qtdePagos}/${numHorarios})</button>
+                            <input type="number" placeholder="Adicional" value="${adicional || ''}" onblur="salvarAdicional('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:10px;padding:4px;border-radius:4px;">
+                            <input type="number" placeholder="Desconto" value="${desconto || ''}" onblur="salvarDesconto('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:10px;padding:4px;border-radius:4px;">
+                            <input type="text" placeholder="Descrição" value="${descricao || ''}" onblur="salvarDescricao('${dataStr}', ${func.id}, this.value)" style="width:90px;font-size:9px;padding:4px;border-radius:4px;">
                         </div>
                     `;
                 }
@@ -1046,10 +1021,9 @@ async function carregarPagamentos() {
                 botoesHTML = `<span style="color:#cbd5e1;">—</span>`;
             }
 
-            funcionarioDiasHTML += `<td style="text-align:center; vertical-align:top; background:${todosPagos ? '#dcfce7' : 'white'}; padding:6px;">${botoesHTML}</td>`;
+            funcionarioDiasHTML += `<td style="text-align:center; background:${todosPagos ? '#dcfce7' : 'white'}; padding:6px;">${botoesHTML}</td>`;
         }
 
-        // 🔥 GARANTIR QUE O VALOR PAGO É EXIBIDO CORRETAMENTE
         funcionariosHTML.push(`
             <tr>
                 <td style="background:#f8fafc;padding:8px;">
@@ -1076,12 +1050,12 @@ async function carregarPagamentos() {
         </div>
         <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse;">
-                <thead><tr style="background:#0f172a;color:white;"><th>Funcionário</th>${diasHTML}<tr></thead>
+                <thead><tr style="background:#0f172a;color:white;"><th>Funcionário</th>${diasHTML}</tr></thead>
                 <tbody>${funcionariosHTML.join('')}</tbody>
             </table>
         </div>
     `;
-    console.log(`✅ Tela atualizada - Total Pago: R$ ${totalGeralPago.toFixed(2)}`);
+    console.log("✅ Tela atualizada");
 }
 
 async function marcarDiaPago(dataStr, funcId) {
@@ -1227,7 +1201,13 @@ async function marcarTodosPagos() {
         const [ano, mes] = mesSelecionado.split('-');
         const diasNoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
         
-        const funcionariosAtivos = funcionarios.filter(f => f.status === true);
+        // 🔥 FILTRO POR SETOR
+        const filtroSetor = document.getElementById("filtroSetorPagamento")?.value || "todos";
+
+        let funcionariosAtivos = funcionarios.filter(f => f.status === true);
+        if (filtroSetor !== "todos") {
+            funcionariosAtivos = funcionariosAtivos.filter(f => f.setor === filtroSetor);
+        }
         
         for (let dia = 1; dia <= diasNoMes; dia++) {
             const dataStr = `${ano}-${mes}-${String(dia).padStart(2, '0')}`;
