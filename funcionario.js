@@ -103,7 +103,7 @@ async function carregarEscalaFirebase() {
         console.error("🚨 ERRO DETALHADO:", error);
         alert(error.message);
         }
-    }
+}
 
 // ========== FUNÇÃO PARA CARREGAR PAGAMENTOS ==========
 async function carregarPagamentosFirebase() {
