@@ -19,6 +19,23 @@ const firebaseConfig = {
     appId: "1:1066676645204:web:3ce459ed8b8b76a7f92cc1"
 };
 
+async function forcarRecargaTotal() {
+    console.log("🔄 FORÇANDO RECARGA TOTAL...");
+    
+    // Limpar cache local
+    localStorage.removeItem("escala_funcionarios_escala");
+    localStorage.removeItem("escala_funcionarios_pagamentos");
+    
+    // Recarregar do Firebase
+    await carregarEscalaFirebase();
+    await carregarPagamentosFirebase();
+    
+    // Recarregar a tela
+    renderizarTela();
+    
+    console.log("✅ Recarga total concluída!");
+}
+
 function normalizarPagamento(registro, dataStr, funcId) {
     if (!registro) {
         const escala = escalaData[dataStr]?.[funcId];
@@ -79,8 +96,8 @@ async function carregarEscalaFirebase() {
         console.log("🔄 Buscando escala do servidor...");
         
         // 🔥 FORÇAR BUSCA DO SERVIDOR (ignorar cache)
-        const snapshot = await db.collection('escala').get({ source: 'server' });
-        escalaData = {};
+        const snapshot = await db.collection('escala').get();
+        const novoEscalaData = {};
 
         snapshot.forEach(doc => {
             const item = doc.data();
@@ -92,19 +109,23 @@ async function carregarEscalaFirebase() {
                 horarios = [item.horario];
             }
 
-            if (!escalaData[data]) escalaData[data] = {};
+            if (!novoEscalaData[data]) novoEscalaData[data] = {};
 
-            escalaData[data][funcId] = {
+            novoEscalaData[data][funcId] = {
                 status: item.status,
                 horarios: horarios
             };
         });
 
-        console.log(`✅ ${snapshot.docs.length} registros de escala carregados do servidor`);
+        // 🔥 SUBSTITUIR COMPLETAMENTE O OBJETO
+        escalaData = novoEscalaData;
+
+        console.log(`✅ ${snapshot.docs.length} registros de escala carregados`);
         
         // Atualizar cache local
         localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
         
+        return true;
     } catch (error) {
         console.error("Erro ao carregar escala:", error);
         
@@ -114,6 +135,7 @@ async function carregarEscalaFirebase() {
             escalaData = JSON.parse(escalaSalva);
             console.log("⚠️ Usando cache local da escala");
         }
+        return false;
     }
 }
 
@@ -124,7 +146,7 @@ async function carregarPagamentosFirebase() {
 
         console.log("🔄 Carregando pagamentos do Firebase...");
         
-        // 🔥 CORRIGIDO: mesma estrutura do admin.js
+        // 🔥 USAR A MESMA COLEÇÃO DO ADMIN
         const snapshot = await db.collection('pagamentos').get();
         pagamentosData = {};
 
@@ -145,9 +167,14 @@ async function carregarPagamentosFirebase() {
 
         console.log(`✅ ${snapshot.docs.length} registros de pagamentos carregados`);
         
+        // Atualizar cache local
+        localStorage.setItem("escala_funcionarios_pagamentos", JSON.stringify(pagamentosData));
+        
+        return true;
     } catch (error) {
         console.error("Erro ao carregar pagamentos:", error);
         pagamentosData = {};
+        return false;
     }
 }
 
