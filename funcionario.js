@@ -76,7 +76,10 @@ async function carregarEscalaFirebase() {
     try {
         if (!db) return;
 
-        const snapshot = await db.collection('escala').get();
+        console.log("🔄 Buscando escala do servidor...");
+        
+        // 🔥 FORÇAR BUSCA DO SERVIDOR (ignorar cache)
+        const snapshot = await db.collection('escala').get({ source: 'server' });
         escalaData = {};
 
         snapshot.forEach(doc => {
@@ -85,8 +88,6 @@ async function carregarEscalaFirebase() {
             const funcId = String(item.funcionario_id);
 
             let horarios = item.horarios || [];
-
-            // compatibilidade com versão antiga
             if (horarios.length === 0 && item.horario) {
                 horarios = [item.horario];
             }
@@ -99,10 +100,21 @@ async function carregarEscalaFirebase() {
             };
         });
 
+        console.log(`✅ ${snapshot.docs.length} registros de escala carregados do servidor`);
+        
+        // Atualizar cache local
+        localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
+        
     } catch (error) {
-        console.error("🚨 ERRO DETALHADO:", error);
-        alert(error.message);
+        console.error("Erro ao carregar escala:", error);
+        
+        // Fallback para cache local
+        const escalaSalva = localStorage.getItem("escala_funcionarios_escala");
+        if (escalaSalva) {
+            escalaData = JSON.parse(escalaSalva);
+            console.log("⚠️ Usando cache local da escala");
         }
+    }
 }
 
 // ========== FUNÇÃO PARA CARREGAR PAGAMENTOS ==========
