@@ -1,6 +1,6 @@
 // sw.js - Service Worker (VERSÃO ESTÁVEL FINAL)
 
-const CACHE_VERSION = 'v4'; // 🔥 IMPORTANTE: mudar versão para limpar cache antigo
+const CACHE_VERSION = 'v5'; // 🔥 IMPORTANTE: mudar versão para limpar cache antigo
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 
