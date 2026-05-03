@@ -222,28 +222,18 @@ async function salvarEscalaFirebase() {
         
         const batch = db.batch();
         
-        //const snapshot = await db.collection('escala').get();
-        //snapshot.forEach(doc => {
-            //batch.delete(doc.ref);
-        //});
-
+        // 🔥 REMOVER TODOS OS DOCUMENTOS ANTIGOS
+        const snapshot = await db.collection('escala').get();
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        // 🔥 ADICIONAR OS NOVOS DADOS
         for (const [data, funcionarios] of Object.entries(escalaData)) {
             for (const [funcId, dados] of Object.entries(funcionarios)) {
                 const docId = `${data}_${funcId}`;
                 const docRef = db.collection('escala').doc(docId);
-
-                batch.set(docRef, {
-                    data,
-                    funcionario_id: parseInt(funcId),
-                    status: dados.status,
-                    horarios: dados.horarios || []
-                }, { merge: true });
-            }
-        }
-        
-        for (const [data, funcionarios] of Object.entries(escalaData)) {
-            for (const [funcId, dados] of Object.entries(funcionarios)) {
-                const docRef = db.collection('escala').doc();
+                
                 batch.set(docRef, {
                     data: data,
                     funcionario_id: parseInt(funcId),
@@ -254,13 +244,10 @@ async function salvarEscalaFirebase() {
         }
         
         await batch.commit();
-        console.log("✅ Escala salva no Firebase");
-        localStorage.setItem("escala_funcionarios_escala", JSON.stringify(escalaData));
+        console.log("✅ Escala salva no Firebase (substituição completa)");
         
-        return true;
     } catch (error) {
         console.error("Erro ao salvar escala:", error);
-        return false;
     }
 }
 
