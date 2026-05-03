@@ -110,20 +110,31 @@ async function carregarPagamentosFirebase() {
     try {
         if (!db) return;
 
-        const docRef = db.collection("sistema").doc("pagamentos");
-        const docSnap = await docRef.get();
+        console.log("🔄 Carregando pagamentos do Firebase...");
+        
+        // 🔥 CORRIGIDO: mesma estrutura do admin.js
+        const snapshot = await db.collection('pagamentos').get();
+        pagamentosData = {};
 
-        if (docSnap.exists) {
-            const data = docSnap.data();
+        snapshot.forEach(doc => {
+            const item = doc.data();
+            const data = item.data;
+            const funcId = item.funcionario_id;
 
-            pagamentosData = data?.dados || {};
-        } else {
-            pagamentosData = {};
-        }
+            if (!pagamentosData[data]) pagamentosData[data] = {};
+            
+            pagamentosData[data][funcId] = {
+                pagos: item.pagos || [],
+                adicional: item.adicional || 0,
+                desconto: item.desconto || 0,
+                descricao: item.descricao || ""
+            };
+        });
 
+        console.log(`✅ ${snapshot.docs.length} registros de pagamentos carregados`);
+        
     } catch (error) {
-        console.error("🚨 ERRO DETALHADO:", error);
-        alert(error.message);
+        console.error("Erro ao carregar pagamentos:", error);
         pagamentosData = {};
     }
 }
@@ -234,7 +245,8 @@ function calcularResumoMes() {
             const desconto = Number(pagamento.desconto || 0);
             
             const numHorarios = escala.horarios ? escala.horarios.length : 1;
-            // 🔥 VERIFICAR SE TODOS OS HORÁRIOS FORAM PAGOS
+            
+            // 🔥 CORREÇÃO: Só é pago se TODOS os horários estiverem com true
             const foiPago = pagos.length === numHorarios && pagos.every(p => p === true);
             
             if (foiPago) {
@@ -313,17 +325,19 @@ function renderizarCalendario() {
         
         const escala = escalaData[dataStr] && escalaData[dataStr][funcionarioAtual.id];
         
-        // 🔥 BUSCAR PAGAMENTO
+        // 🔥 BUSCAR PAGAMENTO DIRETAMENTE
         const pagamento = pagamentosData[dataStr]?.[funcionarioAtual.id] || {};
         const pagamentosArr = pagamento.pagos || [];
         const adicional = Number(pagamento.adicional || 0);
         const desconto = Number(pagamento.desconto || 0);
         
         const numHorarios = (escala && escala.horarios) ? escala.horarios.length : 1;
-        // 🔥 VERIFICAR SE TODOS OS HORÁRIOS ESTÃO PAGOS
+        
+        // 🔥 CORREÇÃO: Só é pago se TODOS os horários tiverem valor TRUE
+        // E o array NÃO pode estar vazio
         const foiPago = pagamentosArr.length === numHorarios && pagamentosArr.every(p => p === true);
         
-        // 🔥 CALCULAR VALOR DO DIA (se pago)
+        // 🔥 CALCULAR VALOR DO DIA (se trabalhou)
         let valorDia = 0;
         if (escala && escala.status === 'trabalha') {
             const horarios = escala.horarios || [];
@@ -353,13 +367,13 @@ function renderizarCalendario() {
                 const horarios = escala.horarios || [];
                 horario = horarios.length > 0 ? horarios[0] : '';
                 
-                // 🔥 SÓ MOSTRAR 💰 SE O DIA FOI PAGO
+                // 🔥 SÓ MOSTRAR 💰 SE O DIA FOI REALMENTE PAGO
                 if (foiPago) {
                     pagoIcon = '💰';
                     statusClass += ' dia-pago';
                     valorTexto = `<div class="dia-indicador" style="font-size:0.6rem; color:#16a34a;">R$ ${valorDia.toFixed(2)}</div>`;
                 } else {
-                    // Dia trabalhado mas NÃO PAGO
+                    // Dia trabalhado mas NÃO PAGO - sem ícone de dinheiro
                     statusClass += ' dia-nao-pago';
                 }
             } else if (escala.status === 'folga') {
