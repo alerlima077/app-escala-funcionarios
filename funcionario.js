@@ -218,8 +218,17 @@ function renderizarTela() {
     app.innerHTML = `
         <div class="container">
             <div class="func-header">
-                <div class="func-nome">👋 Olá, ${funcionarioAtual.nome}</div>
-                <div class="func-diaria">💰 Diária: R$ ${funcionarioAtual.diaria.toFixed(2)}</div>
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+                    <div class="logo-area">
+                        <img src="logo.png" alt="Logo" class="logo-funcionario" 
+                            onerror="this.style.display='none'"
+                            style="width: 60px; height: 60px; object-fit: contain; background: white; border-radius: 12px; padding: 5px;">
+                    </div>
+                    <div style="flex: 1; text-align: center;">
+                        <div class="func-nome">👋 Olá, ${funcionarioAtual.nome}</div>
+                        <div class="func-diaria">💰 Diária: R$ ${funcionarioAtual.diaria.toFixed(2)}</div>
+                    </div>
+                </div>
             </div>
             
             <div class="resumo-card">
